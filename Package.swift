@@ -1,18 +1,9 @@
 // swift-tools-version: 6.2
 import PackageDescription
-
 let package = Package(
     name: "VollageNative",
     platforms: [.macOS(.v26)],
     targets: [
-        // Rules and data logic with no SwiftUI, so tests run without the app.
-        .target(name: "VollageNativeKit"),
-        .executableTarget(
-            name: "VollageNative",
-            dependencies: ["VollageNativeKit"],
-            // App code runs on the main thread unless you say otherwise.
-            swiftSettings: [.defaultIsolation(MainActor.self)]
-        ),
-        .testTarget(name: "VollageNativeKitTests", dependencies: ["VollageNativeKit"]),
+        .executableTarget(name: "VollageNative", swiftSettings: [.defaultIsolation(MainActor.self)])
     ]
 )

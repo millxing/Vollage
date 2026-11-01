@@ -1,86 +1,46 @@
 import AppKit
-import SwiftData
 import SwiftUI
 
-// VollageNative
-//   VollageNative                      the app
-//   APP_STORE=<file> VollageNative     use another database (tests, experiments)
-//   APP_SNAPSHOT=<dir> VollageNative   save a PNG of every sidebar page and Settings tab in light and dark mode, then quit
-//   APP_SEED=1 VollageNative           fill an empty /tmp store with sample items (tools/snap.sh)
-//   VollageNative --selftest           run the self-test on a /tmp store and quit with 0 or 1 (tools/selftest.sh)
-//   APP_ACCENT=<id> VollageNative      run with another accent from Theme.all (UI/Theme.swift)
-//   APP_GRID=1 VollageNative           draw the 8 pt grid and the layout probes over the window
-
-@main
-struct VollageNativeApp: App {
+@main struct VollageNativeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var model = AppModel(container: Store.makeContainer())
-
     var body: some Scene {
-        Window("VollageNative", id: "main") {
-            ContentView()
-                .environment(model)
-                .themed()
-                .overlay { if GridOverlay.enabled { GridOverlay() } }
-                .frame(minWidth: 760, minHeight: 480)
+        WindowGroup("Vollage Native") {
+            NativeCanvas().frame(minWidth: 800, minHeight: 520)
         }
-        .modelContainer(model.container)
-        .defaultSize(width: 1100, height: 720)
+        .defaultSize(width: 1200, height: 760)
         .windowToolbarStyle(.unified)
-        .commands {
-            SidebarCommands()
-            ToolbarCommands()
-            CommandGroup(replacing: .newItem) {
-                Button("New Item") { model.addItem() }
-                    .keyboardShortcut("n")
-            }
-        }
-
-        Settings {
-            SettingsView()
-                .environment(model)
-                .themed()
-        }
-        .windowResizability(.contentSize)
+        .commands { CanvasCommands() }
     }
 }
-
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Started from a terminal, the process is not a foreground app yet.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
     }
-
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
-
-    /// The self-test's result becomes the exit code, after a normal quit.
-    func applicationWillTerminate(_ notification: Notification) {
-        if SelfTest.requested { exit(SelfTest.exitCode) }
-    }
 }
 
-/// Where the data lives: ~/Library/Application Support/VollageNative/VollageNative.store
-enum Store {
-    /// True when APP_STORE points somewhere else (tests, snapshots, seed data).
-    static var isOverridden: Bool {
-        !(ProcessInfo.processInfo.environment["APP_STORE"] ?? "").isEmpty
+struct CanvasModelKey: FocusedValueKey { typealias Value = CanvasModel }
+extension FocusedValues {
+    var canvasModel: CanvasModel? {
+        get { self[CanvasModelKey.self] }
+        set { self[CanvasModelKey.self] = newValue }
     }
-
-    static var url: URL {
-        if let path = ProcessInfo.processInfo.environment["APP_STORE"], !path.isEmpty {
-            return URL(fileURLWithPath: path)
+}
+struct CanvasCommands: Commands {
+    @FocusedValue(\.canvasModel) private var model
+    var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Button("Add Videos…") { model?.chooseVideos() }.keyboardShortcut("i")
+            Button("Open Native Project…") { model?.openProject() }.keyboardShortcut("o")
+            Button("Save Native Project…") { model?.saveProject() }.keyboardShortcut("s")
         }
-        let dir = URL.applicationSupportDirectory.appending(path: "VollageNative", directoryHint: .isDirectory)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appending(path: "VollageNative.store")
-    }
-
-    static func makeContainer() -> ModelContainer {
-        do {
-            return try ModelContainer(for: Item.self, configurations: ModelConfiguration(url: url))
-        } catch {
-            fatalError("Could not open the database at \(url.path): \(error)")
+        CommandMenu("Canvas") {
+            Button("Play / Pause All") { model?.togglePlayback() }.keyboardShortcut(" ", modifiers: [])
+            Button("Arrange Grid") { model?.arrange() }.keyboardShortcut("g", modifiers: [])
+            Button("Shuffle Videos") { model?.shuffle() }.keyboardShortcut("g", modifiers: [.shift])
+            Button("Toggle Performance Mode") { model?.performing.toggle() }.keyboardShortcut("p", modifiers: [])
+            Button("Leave Performance Mode") { model?.performing = false }.keyboardShortcut(.escape, modifiers: [])
         }
     }
 }

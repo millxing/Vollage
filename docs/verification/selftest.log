@@ -1,0 +1,20 @@
+PASS import two real videos
+PASS AVFoundation decodes both fixtures
+PASS video time advances
+PASS global pause stops every player
+PASS pause holds current frame
+PASS mute control updates AVPlayer
+PASS grid preserves locked position
+PASS project restores videos and global pause
+PASS project restores placement and playback settings
+PASS loaded paused project stays paused
+PASS invalid project leaves canvas intact
+PASS missing media leaves canvas intact
+PASS shuffle preserves locked video
+PASS shuffle avoids duplicate sources
+PASS resume preserves playback speed
+PASS AVPlayerLooper continues beyond source duration
+PASS remove stops player and removes clip
+PASS snapshot /tmp/vollage-native-shots/canvas-light.png
+PASS snapshot /tmp/vollage-native-shots/canvas-dark.png
+PASS snapshot /tmp/vollage-native-shots/performance.png
