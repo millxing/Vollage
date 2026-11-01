@@ -1,34 +1,87 @@
 # Vollage Native
 
-SwiftUI and AVFoundation Mac app, macOS 26+. This is the initial native port, not yet feature-equivalent to the Electron app.
+A SwiftUI/AppKit/AVFoundation version of Vollage for macOS 26+, with native editing, portable projects, scenes, folder tools, and output. Motion recording/playback is deliberately excluded. Imported motion is ignored and a notice explains that saving omits it.
 
-## Build and run
+## Build
 
 ```sh
 ./build.sh --open
 ```
 
-Output: `build/Vollage Native.app`. Debug builds: `./build.sh --debug`.
+The signed app is created at `build/Vollage Native.app`. Use `--debug` for development. The installed copy at `~/Applications/Vollage Native.app` is separate; building does not automatically replace it. The Electron app is unaffected.
 
-The build uses the installed Command Line Tools, selects the macOS 26.5 SDK when available, and copies the matching public PackageDescription interface and library into `/tmp/vollage-native-build/toolchain`. This avoids stale Swift 5.10 private interfaces left in the system installation. No system developer files or global Xcode settings are modified. Set `VOLLAGE_BUILD_ROOT` or `VOLLAGE_SDK` to override the build directory or SDK.
+`tools/swift.sh` isolates outdated private PackageDescription interfaces in this Mac's Command Line Tools. It copies the matching public interfaces and library to `/tmp/vollage-native-build/toolchain`, selects the existing macOS 26.5 SDK when available, and uses SwiftPM's native build engine. No SDK is copied and no global developer settings change. SwiftPM emits a deprecation notice for this engine. `VOLLAGE_BUILD_ROOT` and `VOLLAGE_SDK` override the defaults.
 
-## Current workflows
+## Editing
 
-- Add MP4, MOV, and M4V videos; drop file URLs onto the canvas.
-- Loop playback with AVFoundation; pause/resume all with Space.
-- Select and drag videos; adjust size and playback speed in the inspector.
-- Mute, mirror, lock placement, bring forward, and remove videos.
-- Choose a folder recursively, set a count, and shuffle unlocked videos.
-- Arrange a simple grid; locked videos preserve their position.
-- Save/open `.vollage-native` projects, including playback settings and global pause.
-- Command-N opens an independent canvas.
+Add videos or drag files from Finder onto the canvas. MP4, M4V, MOV, MKV, WMV, FLV, AVI and WebM are accepted. AVFoundation is tried first; unsupported media is converted locally using FFmpeg at `/opt/homebrew/bin/ffmpeg` or `/usr/local/bin/ffmpeg`. Originals remain unchanged. Corrupt or protected files may still fail.
 
-Projects reference original video paths; moving a source file breaks that reference. They do not embed media and are not compatible with browser/Electron `.vollage` files. Use the original app for portable projects, scenes, motion, blend modes, ratings, automatic shuffle, export/recording, undo, and codec conversion. Grid layout does not yet optimize aspect ratios or avoid locked rectangles.
+Click a video to select it; Shift-click extends or toggles selection. Drag selected videos together. Drag any selected corner to scale the group's sizes and spacing around the opposite corner. Position-locked members stay fixed. Selection does not change stacking order. Layers gives access to covered videos.
 
-## Verification
+The Video inspector provides individual play/pause, scrubbing, speed 0–1600%, volume, mute, mirror, five blend modes, keep/position locks, double size, layer order, duplicate, delete, source rating, external-player opening and Reveal in Finder. Playback/effect controls apply to all selected videos. The timeline and rating apply to a single video.
 
-`tools/selftest.sh` generates two synthetic H.264 videos with FFmpeg and tests real AVFoundation decoding, advancing time, pause, looping, mute, save/open, invalid-project safety, locked placement, shuffle, and removal. It also captures the running window in light and dark appearances and performance mode. No personal media is used. `tools/grid-lint.sh` checks control spacing; canvas coordinates are deliberately freeform.
+Undo/redo covers composition edits, scenes, folder settings and transforms; a drag or slider gesture is one history step. The last 50 snapshots are retained. Source ratings live outside the document and are not part of composition undo.
 
-The verified app is also installed at `~/Applications/Vollage Native.app`, alongside the original Electron app. Build output does not automatically replace that installed copy. Verification evidence and reviewed screenshots are in `docs/verification/`.
+## Folders, layout and ratings
 
-The local toolchain workaround uses SwiftPM's native build engine, which currently emits a deprecation notice. A clean future Command Line Tools installation should allow returning to the default engine and removing this workaround.
+Setup contains the recursive source folder, requested count (1–100), automatic shuffle and interval (2–3600 seconds), canvas size, and grid arrangement. Changing the count shuffles immediately. Fewer available files produces fewer videos; sources are not duplicated to fill slots.
+
+Keep Video preserves a source while allowing grid movement. Lock Position preserves its source and geometry. Neither is removed to satisfy a lower count. Shuffles prefer sources not currently displayed and preserve playback/effect settings in replaced slots. A grid maximizes video area among candidate row layouts using actual aspect ratios, within free space around position locks. An active grid reflows with workspace size. Dragging or manual resizing switches to manual placement.
+
+Automatic shuffle waits while globally paused, busy, hidden, or showing a modal file dialog. Existing videos continue during preparation. Automatic mode and the source folder are restored from projects when the folder remains accessible. New videos are muted by default.
+
+Unrated or 1–10 ratings are written atomically to `vollage-ratings.json` in the source file's directory and refreshed across native windows. They do not affect shuffle probability. Embedded-only media uses its extracted copy's directory. Renaming/moving a source requires updating its rating sidecar.
+
+## Projects and scenes
+
+Command-N creates an independent document window. Command-O opens projects in new windows. Command-S saves to the current project; Command-Shift-S saves under another name.
+
+Portable `.vollage` projects embed original media used by the current composition and all nine scenes, storing each source path once. Browser versions 1/4 and desktop version 5 are supported; native saves use version 5 and reopen in the Electron app. The earlier `.vollage-native` version-1 files can also be imported, provided their original media still exists.
+
+Scenes capture videos, geometry, layer order, playback positions/settings, locks, blending and global pause. Use the Scenes tab to capture/update, name and recall a slot. Previews are saved in the project. Scene recall deliberately replaces the complete composition, including kept and locked videos.
+
+Windows display project names and edited state. Closing edited work offers Save, Discard or Cancel. Saving from that prompt closes the document after success. Finish recording before closing. Recovery snapshots are refreshed after edits and periodically in `~/Library/Application Support/VollageNative/recovery`; interrupted documents reopen. Recovery references local sources/cache files and is not a backup against deleting them. Embedded originals, conversions and decoded recording audio are cached under the same application-support directory.
+
+## Output
+
+Window Size fills the available canvas; fixed HD, Full HD, 4K, square and portrait presets preserve an output aspect ratio. Preview, screenshots and recordings share the same Core Image compositor, including mirrored video and Normal, Screen, Multiply, Difference and Overlay blending.
+
+Save Screenshot writes a PNG at canvas resolution. Record Output streams H.264 video and mixed stereo AAC audio to an MP4. Source audio respects mute, volume, pause and speed. FFmpeg prepares decoded audio in a disk cache; no microphone or screen-recording permission is needed for composition output. A recording badge and Stop control remain available in clean view. Real-time performance depends on media, video count, resolution and hardware; overloaded rendering can drop frames.
+
+Clean View hides editing controls and disables editing. Fullscreen is independent. Playback, shuffle, scene recall, screenshot and recording remain available.
+
+## Keyboard
+
+| Shortcut | Action |
+| --- | --- |
+| Command-N / O / S / Shift-S | New / Open / Save / Save As |
+| Command-Z / Shift-Z | Undo / Redo |
+| Command-A / Command-D | Select all videos / Duplicate |
+| Space | Play/pause all while preserving individual pause |
+| P / Escape | Clean view / Return to editing |
+| Return | Fullscreen |
+| G / Shift-G | Arrange grid / Shuffle |
+| K / Shift-K | Keep video / Lock position |
+| 1–9 / Shift-1–9 | Recall / Capture scene |
+| H / V | Screenshot / Start or stop output recording |
+| + / − | Adjust selected speed by 25 percentage points |
+| [ / ] | Adjust selected volume by 10% |
+| M / N | Mirror / Mute |
+| A / B | Forward / Backward one layer |
+| C / Delete / Z | Duplicate / Delete / Double size |
+| U / Y | Undo / Redo |
+| O / L / S | Add videos / Open project / Save project |
+| R / Q | Clear / Close document |
+
+Unmodified shortcuts are suspended while a text field is being edited. Help is available from the Help menu.
+
+## Tests
+
+```sh
+tools/selftest.sh
+tools/grid-lint.sh
+```
+
+The self-test uses generated color, portrait, rotated and legacy-codec video, plus two audio tones, in `/tmp`. It verifies actual playback, pause, looping, undo/redo, selection edits, locked/free-region grids, pinned shuffle/count changes, automatic shuffle, scenes, ratings, conversion caching, portable media without originals, recovery storage, per-pixel blending, and recorded video/audio tracks. It opens native output with the existing Electron storage module, saves it there, and reopens that output and legacy browser-format fixtures natively. It also checks that both source tones reach the recording and captures all inspector tabs in light/dark appearances.
+
+`VOLLAGE_DATA_ROOT` isolates test state. `VOLLAGE_TEST_MEDIA` selects test fixtures; `VOLLAGE_UI_ONLY=1` seeds an interactive test window without running the assertions. No personal videos or projects are used during verification.

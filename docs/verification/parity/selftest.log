@@ -1,0 +1,63 @@
+PASS import real H.264 videos
+PASS AVFoundation ready for playback
+PASS video time advances
+PASS multi-selection extends
+PASS batch playback edits reach players
+PASS undo restores grouped edit
+PASS redo reapplies grouped edit
+PASS global pause holds frames
+PASS global resume preserves individual pause
+PASS seek paused video
+PASS Play on a still video resumes at normal speed
+PASS duplicate uses independent identity
+PASS delete selected videos
+PASS grid preserves position locks
+PASS grid avoids locked rectangles
+PASS grid respects source aspect ratio
+PASS shuffle keeps pinned source
+PASS shuffle avoids duplicate files
+PASS count reduction respects retained video
+PASS automatic shuffle waits during global pause
+PASS automatic shuffle performs replacements
+PASS clear canvas
+PASS scene recall restores identities and composition
+PASS undo scene recall
+PASS rating sidecar round trip
+PASS unrated removes sidecar score
+PASS rotation metadata matches rendered orientation: Optional((-360.0, 0.0, 360.0, 640.0)) / 0.5625
+PASS unsupported codec converts without replacing original
+PASS conversion cache reused
+PASS portable project opens with original source absent
+PASS portable project restores scenes and media
+PASS portable project restores flags
+PASS invalid project preserves current composition
+PASS recovery document persists
+PASS recovery discarded independently
+PASS normal blend exported correctly
+PASS screen blend exported correctly
+PASS multiply blend exported correctly
+PASS difference blend exported correctly
+PASS overlay blend exported correctly
+PASS short audio is padded with silence to video duration
+PASS recording continues during background preparation
+PASS MP4 duration follows real time
+PASS MP4 contains mixed audio track
+PASS MP4 contains composed video track
+PASS video loop continues past source duration
+PASS snapshot video-light.png
+PASS snapshot layers-light.png
+PASS snapshot scenes-light.png
+PASS snapshot setup-light.png
+PASS snapshot video-dark.png
+PASS snapshot layers-dark.png
+PASS snapshot scenes-dark.png
+PASS snapshot setup-dark.png
+PASS snapshot clean.png
+PASS native portable project opens and saves with Electron storage; media deduplicated across scenes
+PASS Electron-saved portable project opens natively
+PASS embedded media extracted
+PASS browser v1 project opens natively
+PASS browser v4 project opens natively
+PASS output audio is non-silent
+PASS recorded audio contains 440 Hz source
+PASS recorded audio contains 660 Hz source

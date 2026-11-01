@@ -1,0 +1,11 @@
+[0/1] Planning build
+Building for production...
+[0/3] Write sources
+[1/3] Write swift-version--1AB21518FC5DEDBE.txt
+[3/4] Compiling VollageNative App.swift
+[3/5] Write Objects.LinkFileList
+[4/5] Linking VollageNative
+Build complete! (7.12s)
+warning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.
+/Users/robschoen/Dropbox/CC/Vollage/native/VollageNative/build/Vollage Native.app: replacing existing signature
+Built /Users/robschoen/Dropbox/CC/Vollage/native/VollageNative/build/Vollage Native.app

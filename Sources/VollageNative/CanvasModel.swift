@@ -1,86 +1,181 @@
 import SwiftUI
-import AVKit
 import UniformTypeIdentifiers
+import AVFoundation
 
 @Observable final class CanvasModel {
+    let id = UUID()
     var clips: [Clip] = []
-    var selection: UUID?
-    var paused = false
+    var selectedIDs = Set<String>()
+    var primaryID: String?
+    var selected: Clip? { clips.first { $0.id == primaryID } }
+    var selection: [Clip] { clips.filter { selectedIDs.contains($0.id) } }
+    var document = DocumentState()
     var performing = false
-    var folder: [URL] = []
-    var count = 5
+    var panel = "Video"
     var error: String?
-    var selected: Clip? { clips.first { $0.id == selection } }
-    func add(_ urls: [URL]) {
-        for url in urls where ["mp4", "mov", "m4v"].contains(url.pathExtension.lowercased()) {
-            let clip = Clip(url); if paused { clip.player.pause() }; clips.append(clip)
+    var status = ""
+    var busy = false
+    var dirty = false
+    var projectURL: URL?
+    var closeAfterSave = false
+    var recoveryElapsed = 0.0
+    var folder: [URL] = []
+    var automatic = false
+    var countdown = 30.0
+    var now = 0.0
+    var undoStack: [DocumentState] = []
+    var redoStack: [DocumentState] = []
+    var recording: OutputRecorder?
+    var recordingStarted = Date()
+    @ObservationIgnored var importing: Task<Void, Never>?
+    @ObservationIgnored var recoveryTask: Task<Void, Never>?
+    @ObservationIgnored var transaction: DocumentState?
+    @ObservationIgnored var workspaceSize = CGSize(width: 1016, height: 788)
+    @ObservationIgnored weak var window: NSWindow?
+    @ObservationIgnored let compositor = Compositor()
+    var paused: Bool { document.paused }
+    var canEdit: Bool { !performing && !busy }
+    var title: String { projectURL?.deletingPathExtension().lastPathComponent ?? "Untitled" }
+    func snapshot() -> DocumentState { var value = document; value.videos = clips.map { $0.snapshot() }; return value }
+    func apply(_ state: DocumentState) {
+        let old = Dictionary(uniqueKeysWithValues: clips.map { ($0.id, $0) })
+        clips = state.videos.map { value in
+            if let existing = old[value.id], existing.state.playbackPath == value.playbackPath {
+                existing.globalPaused = state.paused; existing.state = value
+                existing.player.seek(to: CMTime(seconds: value.time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+                return existing
+            }
+            return Clip(value, globalPaused: state.paused)
         }
-        arrange()
+        let remaining = Set(clips.map(\.id)); old.values.filter { !remaining.contains($0.id) }.forEach { $0.player.pause() }
+        let changedFolder = document.folderPath != state.folderPath
+        automatic = state.autoShuffle ?? false; countdown = state.seconds
+        document = state; selectedIDs.formIntersection(remaining)
+        if changedFolder {
+            folder = []
+            Task { let values = (try? await MediaLibrary.shared.files(in: URL(fileURLWithPath: state.folderPath))) ?? []; if document.folderPath == state.folderPath { folder = values } }
+        }
+        if !remaining.contains(primaryID ?? "") { primaryID = selectedIDs.first }
+        refreshRatings()
     }
-    func arrange() {
-        let movable = clips.filter { !$0.locked }
-        let columns = max(1, Int(ceil(sqrt(Double(movable.count)))))
-        let rows = max(1, Int(ceil(Double(movable.count) / Double(columns))))
-        for (i, clip) in movable.enumerated() {
-            clip.width = 0.94 / Double(max(columns, rows))
-            clip.x = (Double(i % columns) + 0.5) / Double(columns)
-            clip.y = (Double(i / columns) + 0.5) / Double(rows)
+    func checkpoint() { if transaction == nil { undoStack.append(snapshot()); if undoStack.count > 50 { undoStack.removeFirst() }; redoStack = [] } }
+    func changed() { dirty = true; window?.isDocumentEdited = true; scheduleRecovery() }
+    func beginGesture() { guard transaction == nil else { return }; transaction = snapshot() }
+    func endGesture() {
+        guard let before = transaction else { return }; transaction = nil
+        undoStack.append(before); if undoStack.count > 50 { undoStack.removeFirst() }; redoStack = []; changed()
+    }
+    func undo() { guard canEdit, let previous = undoStack.popLast() else { return }; redoStack.append(snapshot()); apply(previous); changed() }
+    func redo() { guard canEdit, let next = redoStack.popLast() else { return }; undoStack.append(snapshot()); apply(next); changed() }
+    func edit(_ body: (Clip) -> Void) { guard canEdit, !selection.isEmpty else { return }; checkpoint(); selection.forEach(body); changed() }
+    func select(_ clip: Clip, extending: Bool = false) {
+        guard !performing else { return }
+        if extending { if !selectedIDs.insert(clip.id).inserted { selectedIDs.remove(clip.id) } } else { selectedIDs = [clip.id] }
+        primaryID = selectedIDs.contains(clip.id) ? clip.id : selectedIDs.first
+    }
+    func selectAll() { guard canEdit else { return }; selectedIDs = Set(clips.map(\.id)); primaryID = clips.last?.id }
+    func removeSelection() {
+        guard canEdit else { return }; checkpoint()
+        selection.forEach { $0.player.pause() }; clips.removeAll { selectedIDs.contains($0.id) }; selectedIDs = []; primaryID = nil; changed()
+    }
+    func clear() { guard canEdit else { return }; checkpoint(); clips.forEach { $0.player.pause() }; clips = []; selectedIDs = []; primaryID = nil; changed() }
+    func duplicate() {
+        guard canEdit else { return }; checkpoint()
+        let copies = selection.map { clip in var value = clip.snapshot(); value.id = UUID().uuidString; value.x += 0.1; value.y += 0.1; return Clip(value, globalPaused: paused) }
+        clips += copies; selectedIDs = Set(copies.map(\.id)); primaryID = copies.last?.id; changed()
+    }
+    func layer(_ forward: Bool) {
+        guard canEdit else { return }; checkpoint()
+        let indices = forward ? Array(clips.indices.reversed()) : Array(clips.indices)
+        for i in indices where selectedIDs.contains(clips[i].id) {
+            let j = i + (forward ? 1 : -1)
+            if clips.indices.contains(j), !selectedIDs.contains(clips[j].id) { clips.swapAt(i, j) }
+        }; changed()
+    }
+    func togglePlayback() {
+        guard !busy else { return }; checkpoint(); document.paused.toggle()
+        clips.forEach { $0.globalPaused = paused; $0.sync() }; changed()
+    }
+    func toggleSelectedPlayback() {
+        guard let clip = selected else { return }
+        let pause = !clip.state.paused && clip.state.speed > 0
+        edit { $0.state.paused = pause; if !pause && $0.state.speed == 0 { $0.state.speed = 1 } }
+    }
+    func seek(_ seconds: Double) {
+        guard let clip = selected, canEdit else { return }
+        checkpoint(); clip.player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero); changed()
+    }
+    func cancelImport() { importing?.cancel(); status = "Cancelling import…" }
+    func add(_ urls: [URL]) { guard canEdit else { return }; importing = Task { await importVideos(urls) } }
+    func importVideos(_ urls: [URL]) async {
+        guard !busy else { return }; busy = true; defer { busy = false }
+        var ready: [VideoState] = []; var failures: [String] = []
+        for (i, url) in urls.enumerated() {
+            if Task.isCancelled { return }; status = "Preparing video \(i + 1) of \(urls.count)…"
+            do { var value = try await MediaLibrary.shared.prepare(url); value.height = value.width * document.canvasWidth / document.canvasHeight / value.aspect; if let recording { try await recording.cacheAudio([value]) }; ready.append(value) }
+            catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
         }
+        guard !Task.isCancelled else { return }
+        if !ready.isEmpty { checkpoint(); clips += ready.map { Clip($0, globalPaused: paused) }; arrange(recordHistory: false); changed(); refreshRatings() }
+        status = "Added \(ready.count) videos"
+        if !failures.isEmpty { error = failures.joined(separator: "\n") }
     }
     func chooseVideos() {
-        let panel = NSOpenPanel(); panel.allowsMultipleSelection = true; panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .movie]
+        guard canEdit else { return }
+        let panel = NSOpenPanel(); panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = MediaLibrary.extensions.compactMap { UTType(filenameExtension: $0) }
         if panel.runModal() == .OK { add(panel.urls) }
     }
     func chooseFolder() {
-        let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
+        guard canEdit else { return }; let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        folder = (FileManager.default.enumerator(at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])?.allObjects as? [URL] ?? []).filter { ["mp4", "mov", "m4v"].contains($0.pathExtension.lowercased()) }
-        if clips.isEmpty { shuffle() }
-    }
-    func shuffle() {
-        guard !folder.isEmpty else { return }
-        for clip in clips where !clip.locked { clip.player.pause() }
-        clips.removeAll { !$0.locked }
-        add(Array(folder.filter { url in !clips.contains { $0.url == url } }.shuffled().prefix(max(0, count - clips.count))))
-    }
-    func saveProject() {
-        let panel = NSSavePanel(); panel.nameFieldStringValue = "Untitled.vollage-native"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try projectData().write(to: url, options: .atomic) } catch { self.error = error.localizedDescription }
-    }
-    func openProject() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "vollage-native") ?? .json]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try loadProject(Data(contentsOf: url)) } catch { self.error = "Could not open the native project. Check its format and that the source videos still exist. " + error.localizedDescription }
-    }
-
-    func togglePlayback() {
-        paused.toggle()
-        for clip in clips { if paused { clip.player.pause() } else { clip.player.rate = clip.speed } }
-    }
-    func remove(_ clip: Clip) {
-        clip.player.pause()
-        clips.removeAll { $0.id == clip.id }
-        selection = nil
-    }
-    func projectData() throws -> Data {
-        try JSONEncoder().encode(Project(clips: clips.map { ClipRecord(path: $0.url.path, x: $0.x, y: $0.y, width: $0.width, muted: $0.muted, speed: $0.speed, mirrored: $0.mirrored, locked: $0.locked) }, paused: paused))
-    }
-    func loadProject(_ data: Data) throws {
-        let project = try JSONDecoder().decode(Project.self, from: data)
-        guard project.version == 1 else { throw CocoaError(.fileReadUnknown) }
-        guard project.clips.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) && $0.x.isFinite && $0.y.isFinite && $0.width >= 0.05 && $0.width <= 1 && $0.speed >= 0 && $0.speed <= 4 }) else { throw CocoaError(.fileReadCorruptFile) }
-        let replacement = project.clips.map { record in
-            let clip = Clip(URL(fileURLWithPath: record.path)); clip.x = record.x; clip.y = record.y; clip.width = record.width; clip.muted = record.muted; clip.speed = record.speed; clip.mirrored = record.mirrored; clip.locked = record.locked
-            if project.paused { clip.player.pause() }; return clip
+        importing = Task {
+            do { let values = try await MediaLibrary.shared.files(in: url); checkpoint(); folder = values; document.folderPath = url.path; changed(); if clips.isEmpty { await shuffleNow() } }
+            catch { self.error = error.localizedDescription }
         }
-        clips.forEach { $0.player.pause() }
-        clips = replacement; paused = project.paused; selection = nil
     }
-}
-struct Project: Codable {
-    var version = 1
-    var clips: [ClipRecord]
-    var paused: Bool
+    func changeCount(_ value: Int) {
+        guard canEdit else { return }; beginGesture(); document.count = value
+        if folder.isEmpty { endGesture() } else { importing = Task { await shuffleNow(); endGesture() } }
+    }
+    func shuffle() { guard !busy, !folder.isEmpty else { return }; importing = Task { await shuffleNow() } }
+    func shuffleNow() async {
+        guard !busy, !folder.isEmpty else { return }; busy = true; defer { busy = false; countdown = document.seconds }
+        let retained = clips.filter { $0.state.pinned || $0.state.locked }
+        let sources = Set(retained.map { $0.state.path }), current = Set(clips.map { $0.state.path })
+        let available = folder.filter { !sources.contains($0.path) }.shuffled().sorted { !current.contains($0.path) && current.contains($1.path) }
+        let needed = max(0, document.count - retained.count)
+        var ready: [VideoState] = []; let slots = clips.filter { !$0.state.pinned && !$0.state.locked }
+        for url in available where ready.count < needed {
+            if Task.isCancelled { return }; status = "Preparing shuffle \(ready.count + 1) of \(needed)…"
+            do {
+                var value = try await MediaLibrary.shared.prepare(url)
+                if ready.count < slots.count { let old = slots[ready.count].snapshot(); value.x = old.x; value.y = old.y; value.width = old.width; value.height = old.height; value.speed = old.speed; value.volume = old.volume; value.muted = old.muted; value.paused = old.paused; value.mirrored = old.mirrored; value.blend = old.blend }
+                if let recording { try await recording.cacheAudio([value]) }
+                ready.append(value)
+            } catch { status = "Skipped \(url.lastPathComponent)" }
+        }
+        guard !Task.isCancelled else { return }
+        if needed > 0 && ready.isEmpty { error = "No playable replacement videos were found. The composition was kept."; return }
+        checkpoint()
+        var replacements = ready.makeIterator(); var next: [Clip] = []
+        for clip in clips {
+            if clip.state.pinned || clip.state.locked { next.append(clip) }
+            else { clip.player.pause(); if let value = replacements.next() { next.append(Clip(value, globalPaused: paused)) } }
+        }
+        while let value = replacements.next() { next.append(Clip(value, globalPaused: paused)) }
+        clips = next; selectedIDs.formIntersection(Set(clips.map(\.id))); primaryID = selectedIDs.first
+        arrange(recordHistory: false); changed(); refreshRatings(); status = "Shuffled \(ready.count) videos"
+    }
+    func tick(_ elapsed: Double) {
+        now += elapsed
+        recoveryElapsed += elapsed
+        if dirty && recoveryElapsed > 15 { recoveryElapsed = 0; scheduleRecovery() }
+        if automatic && !paused && !busy && NSApp.modalWindow == nil && !NSApp.isHidden { countdown -= elapsed; if countdown <= 0 { shuffle() } }
+    }
+    func refreshRatings() { Task { for clip in clips { do { clip.rating = try await MediaLibrary.shared.rating(clip.originalURL.path) } catch { status = error.localizedDescription } } } }
+    func rate(_ value: Int) {
+        guard selection.count == 1, let clip = selected else { return }
+        Task { do { try await MediaLibrary.shared.rate(clip.originalURL.path, value: value); for model in AppHub.models { model.refreshRatings() } } catch { self.error = error.localizedDescription } }
+    }
 }
