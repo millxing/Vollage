@@ -12,7 +12,7 @@ ffmpeg=${FFMPEG:-$(command -v ffmpeg)}
 "$ffmpeg" -hide_banner -loglevel error -f lavfi -i color=c=green:size=320x180:rate=30:duration=2 -f lavfi -i sine=frequency=880:sample_rate=48000:duration=0.5 -c:v libx264 -pix_fmt yuv420p -c:a aac -y "$fixtures/short-audio.mp4"
 export VOLLAGE_TEST_MEDIA="$fixtures"
 export VOLLAGE_DATA_ROOT=/tmp/vollage-native-parity-data
-export VOLLAGE_SNAPSHOTS=/tmp/vollage-native-parity-shots
+export VOLLAGE_SNAPSHOTS=${VOLLAGE_SNAPSHOTS:-/tmp/vollage-native-parity-shots}
 "$here/build/Vollage.app/Contents/MacOS/Vollage" --selftest
 node "$here/tools/portable-test.cjs" "$fixtures"
 VOLLAGE_ROUNDTRIP="$fixtures/electron-roundtrip.vollage" "$here/build/Vollage.app/Contents/MacOS/Vollage" --selftest

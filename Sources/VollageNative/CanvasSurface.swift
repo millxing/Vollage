@@ -4,13 +4,17 @@ import AppKit
 struct CanvasSurface: NSViewRepresentable {
     let model: CanvasModel
     func makeNSView(context: Context) -> CanvasView { CanvasView(model) }
-    func updateNSView(_ view: CanvasView, context: Context) { view.needsDisplay = true }
+    func updateNSView(_ view: CanvasView, context: Context) {
+        view.accessibleClips.removeAll { element in !model.clips.contains { $0 === element.clip } }
+        view.needsDisplay = true
+    }
     static func dismantleNSView(_ view: CanvasView, coordinator: ()) { view.timer?.invalidate(); view.stopKeys() }
 }
 final class CanvasView: NSView {
     let model: CanvasModel
     var timer: Timer?
     var keyMonitor: Any?
+    var accessibleClips: [CanvasClipAccessibility] = []
     var previousTick = ProcessInfo.processInfo.systemUptime
     var anchor = CGPoint.zero
     var originals: [String: VideoState] = [:]
@@ -28,7 +32,7 @@ final class CanvasView: NSView {
             let handled = MainActor.assumeIsolated {
                 guard let self, let window = self.window, window == NSApp.keyWindow,
                       window.attachedSheet == nil, NSApp.modalWindow == nil,
-                      !(window.firstResponder is NSTextView) else { return false }
+                      window.firstResponder === self else { return false }
                 return self.handleKey(event)
             }
             return handled ? nil : event
@@ -47,10 +51,17 @@ final class CanvasView: NSView {
         }
         if let timer { RunLoop.main.add(timer, forMode: .common) }
     }
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Initial canvas focus enables editing shortcuts. Inspector controls keep their own keys.
+        if let window, window.firstResponder == nil || window.firstResponder === window.contentView {
+            window.makeFirstResponder(self)
+        }
+    }
     func stopKeys() { if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }; keyMonitor = nil }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     var canvas: CGRect {
-        guard model.document.fixedCanvas else { return bounds }
+        guard model.document.fixedCanvas || model.performing else { return bounds }
         let ratio = model.document.canvasWidth / model.document.canvasHeight
         let width = min(bounds.width, bounds.height * ratio), height = min(bounds.height, bounds.width / ratio)
         return CGRect(x: (bounds.width-width)/2, y: (bounds.height-height)/2, width: width, height: height)
@@ -143,6 +154,18 @@ final class CanvasView: NSView {
         if key == "g", shift { model.shuffle(); return true }
         guard model.canEdit else { return false }
         if event.keyCode == 51 || event.keyCode == 117 { model.removeSelection(); return true }
+        if [123, 124, 125, 126].contains(event.keyCode), !model.selection.isEmpty {
+            let step = shift ? 10.0 : 1.0
+            let dx = event.keyCode == 123 ? -step : event.keyCode == 124 ? step : 0
+            let dy = event.keyCode == 126 ? -step : event.keyCode == 125 ? step : 0
+            model.edit { clip in
+                guard !clip.state.locked else { return }
+                clip.state.x += dx / model.document.canvasWidth
+                clip.state.y += dy / model.document.canvasHeight
+                model.document.gridActive = false
+            }
+            return true
+        }
         switch key {
         case "g": model.arrange()
         case "k": if shift { let flag = !(model.selected?.state.locked ?? false); model.edit { $0.state.locked = flag } } else { let flag = !(model.selected?.state.pinned ?? false); model.edit { $0.state.pinned = flag } }
@@ -198,9 +221,57 @@ final class CanvasView: NSView {
         default: break
         }
     }
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .group }
+    override func accessibilityLabel() -> String? { "Composition canvas" }
+    override func accessibilityHelp() -> String? { "Select videos here or in Layers. Arrow keys move the selection; Shift moves ten pixels. Use the Video inspector for playback, appearance and placement." }
+    override func accessibilityChildren() -> [Any]? {
+        let existing = Dictionary(uniqueKeysWithValues: accessibleClips.map { ($0.clip.id, $0) })
+        accessibleClips = model.clips.map { clip in
+            let element = existing[clip.id].flatMap { $0.clip === clip ? $0 : nil } ?? CanvasClipAccessibility(clip: clip, canvas: self)
+            element.update(canvas: self)
+            return element
+        }
+        return accessibleClips
+    }
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation { model.canEdit ? .copy : [] }
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         guard model.canEdit, let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] else { return false }
         model.add(urls); return true
+    }
+}
+
+// Expose each composited video to assistive technology; drawing alone creates no AX objects.
+@MainActor final class CanvasClipAccessibility: NSAccessibilityElement {
+    let clip: Clip
+    nonisolated let pressAction: @MainActor @Sendable () -> Bool
+    nonisolated override init() { fatalError("Use init(clip:canvas:)") }
+    init(clip: Clip, canvas: CanvasView) {
+        self.clip = clip
+        pressAction = { [weak canvas, weak clip] in
+            guard let canvas, let clip, canvas.model.canEdit else { return false }
+            canvas.model.select(clip)
+            canvas.window?.makeFirstResponder(canvas)
+            canvas.needsDisplay = true
+            return true
+        }
+        super.init()
+        setAccessibilityElement(true)
+        setAccessibilityParent(canvas)
+        setAccessibilityRole(.button)
+        update(canvas: canvas)
+    }
+    func update(canvas: CanvasView) {
+        setAccessibilityEnabled(canvas.model.canEdit)
+        setAccessibilityLabel(clip.state.name)
+        setAccessibilityValue("\(canvas.model.selectedIDs.contains(clip.id) ? "Selected" : "Not selected")\(clip.state.locked ? ", position locked" : "")\(clip.state.pinned ? ", kept during shuffle" : "")")
+        if let window = canvas.window {
+            setAccessibilityFrame(window.convertToScreen(canvas.convert(canvas.rect(clip.state), to: nil)))
+        }
+    }
+    nonisolated override func accessibilityPerformPress() -> Bool {
+        // AppKit delivers accessibility actions on the main thread. Capture only a Sendable callback.
+        let action = pressAction
+        return MainActor.assumeIsolated { action() }
     }
 }

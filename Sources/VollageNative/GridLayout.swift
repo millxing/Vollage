@@ -4,7 +4,7 @@ import CoreGraphics
 extension CanvasModel {
     func workspaceChanged(_ size: CGSize) {
         workspaceSize = size
-        guard !document.fixedCanvas, size.width > 0, size.height > 0 else { return }
+        guard !performing, !document.fixedCanvas, size.width > 0, size.height > 0 else { return }
         guard document.canvasWidth != size.width.rounded() || document.canvasHeight != size.height.rounded() else { return }
         document.canvasWidth = size.width.rounded(); document.canvasHeight = size.height.rounded()
         if document.gridActive { arrange(recordHistory: false) }

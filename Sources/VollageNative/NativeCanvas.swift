@@ -27,9 +27,9 @@ struct NativeCanvas: View {
                     if model.recording != nil {
                         TimelineView(.periodic(from: .now, by: 1)) { context in
                             HStack { Image(systemName: "record.circle.fill").foregroundStyle(.red); Text("Recording · \(Int(context.date.timeIntervalSince(model.recordingStarted)))s").monospacedDigit(); Button("Stop") { model.toggleRecording() } }
-                                .padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)).padding(16)
+                                .padding(12).background(.black.opacity(0.9), in: RoundedRectangle(cornerRadius: 8)).foregroundStyle(.white).preferredColorScheme(.dark).padding(16)
                         }
-                    } else if !model.performing && !model.status.isEmpty {
+                    } else if !model.busy && !model.performing && !model.status.isEmpty {
                         Text(model.status).font(.caption).lineLimit(2).padding(8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)).padding(8)
                     }
                 }.allowsHitTesting(model.busy || model.recording != nil)
@@ -38,8 +38,8 @@ struct NativeCanvas: View {
         }
         .ignoresSafeArea(.container, edges: (model.performing || model.fullscreen) ? .top : [])
         .background(Color.black)
-        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-        .frame(minWidth: !model.performing && model.sidebarVisible ? 960 : 656, minHeight: 640)
+        .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+        .frame(minWidth: !model.performing && model.sidebarVisible ? 960 : 656, minHeight: 588)
         .navigationTitle(model.title)
         .focusedSceneValue(\.canvasModel, model)
         .background(WindowBinding(model: model))
@@ -52,11 +52,11 @@ struct NativeCanvas: View {
             Button("Shuffle", systemImage: "shuffle") { model.shuffle() }.disabled(model.folder.isEmpty || model.busy).help("Shuffle unlocked videos (⇧G)")
             Spacer()
             Menu {
-                Button("Save Project") { model.saveProject() }
-                Button("Save Project As…") { model.saveProject(copy: true) }
+                Button("Save Project") { model.saveProject() }.keyboardShortcut("s")
+                Button("Save Project As…") { model.saveProject(copy: true) }.keyboardShortcut("s", modifiers: [.command, .shift])
                 Button("Save Screenshot…") { model.screenshot() }
                 Button(model.recording == nil ? "Record Output…" : "Stop Recording") { model.toggleRecording() }
-            } label: { Label("Save and Output", systemImage: "square.and.arrow.up") }.help("Save projects, PNG screenshots, or MP4 recordings")
+            } label: { Label("Save and Output", systemImage: "square.and.arrow.down") }.accessibilityLabel("Save and Output").help("Save projects, PNG screenshots, or MP4 recordings")
             Button("Clean View", systemImage: "play.rectangle") { model.performing.toggle() }.help("Hide controls (P); return with Escape")
             Button("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") { model.window?.toggleFullScreen(nil) }.help("Toggle fullscreen (Return)")
             Button(model.sidebarVisible ? "Hide Right Sidebar" : "Show Right Sidebar", systemImage: "sidebar.right") {

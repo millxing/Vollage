@@ -71,9 +71,9 @@ Clean View hides editing controls and disables editing. Fullscreen is independen
 | C / Delete / Z | Duplicate / Delete / Double size |
 | U / Y | Undo / Redo |
 | O / L / S | Add videos / Open project / Save project |
-| R / Q | Clear / Close document |
+| R / Q | Remove all videos / Close document |
 
-Unmodified shortcuts are suspended while a text field is being edited. Help is available from the Help menu.
+Unmodified editing shortcuts apply while the canvas has focus; click the canvas to return focus from the inspector. Inspector controls and text fields receive their normal keyboard input. Arrow keys move selected, unlocked videos by one pixel; Shift-arrow moves ten pixels. Escape leaves clean view from anywhere in the window. Help is available from the Help menu.
 
 ## Tests
 

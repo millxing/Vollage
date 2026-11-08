@@ -14,10 +14,25 @@ enum NativeChecks {
         }
         func wait(_ seconds: Double = 0.4) async { try? await Task.sleep(for: .seconds(seconds)) }
         let root = URL(fileURLWithPath: fixture)
+        if env["VOLLAGE_REVIEW_ONLY"] == "1", let directory = env["VOLLAGE_SNAPSHOTS"] {
+            try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            await model.importVideos([root.appendingPathComponent("red.mp4"), root.appendingPathComponent("blue.mp4")])
+            model.folder = [root.appendingPathComponent("red.mp4"), root.appendingPathComponent("blue.mp4")]
+            model.document.folderPath = root.path
+            model.captureScene(0); model.renameScene(0, "First Scene")
+            if env["VOLLAGE_REVIEW_WAIT_ACTIVE"] == "1" {
+                model.status = "Review ready — click the canvas to begin capture"
+                while !NSApp.isActive { await wait(0.2) }
+                model.status = ""
+            }
+            await ReviewEvidence.capture(model, directory: directory, check: check)
+            exit(failures == 0 ? 0 : 1)
+        }
         if env["VOLLAGE_UI_ONLY"] == "1" {
             await model.importVideos([root.appendingPathComponent("red.mp4"), root.appendingPathComponent("portrait.mp4")])
             model.folder = [root.appendingPathComponent("red.mp4"), root.appendingPathComponent("blue.mp4"), root.appendingPathComponent("portrait.mp4")]
             model.document.folderPath = root.path
+            if env["VOLLAGE_UI_SIZE"] == "minimum" { model.window?.setContentSize(NSSize(width: 960, height: 588)) }
             model.status = "Synthetic media for UI testing"; model.dirty = false
             return
         }
@@ -170,14 +185,19 @@ enum NativeChecks {
                     model.panel = panel; await wait(0.4); await capture("\(directory)/\(panel.lowercased())-\(mode).png", model, check)
                 }
             }
+            if env["VOLLAGE_REVIEW"] == "1" { await ReviewEvidence.capture(model, directory: directory, check: check) }
             model.performing = true; await wait(); await capture("\(directory)/clean.png", model, check); model.performing = false
         }
         if CommandLine.arguments.contains("--selftest") { exit(failures == 0 ? 0 : 1) }
     }
     static func capture(_ path: String, _ model: CanvasModel, _ check: (Bool, String) -> Void) async {
         guard let window = model.window else { check(false, "window exists"); return }
-        NSApp.activate(); window.makeKeyAndOrderFront(nil)
+        NSApp.unhide(nil)
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
+        window.makeKeyAndOrderFront(nil)
         try? await Task.sleep(for: .milliseconds(300))
+        if window.isKeyWindow && NSApp.isActive { check(true, "snapshot has active key window") }
+        else { FileHandle.standardError.write(Data("UNVERIFIED inactive window: \(URL(fileURLWithPath: path).lastPathComponent) — layout evidence only\n".utf8)) }
         let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture"); process.arguments = ["-x", "-o", "-l", String(window.windowNumber), path]
         do { try process.run(); process.waitUntilExit(); check(process.terminationStatus == 0, "snapshot \(URL(fileURLWithPath: path).lastPathComponent)") } catch { check(false, "snapshot failed") }
     }

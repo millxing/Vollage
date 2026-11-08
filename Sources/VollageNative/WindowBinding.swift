@@ -10,8 +10,8 @@ struct WindowBinding: NSViewRepresentable {
         func bind(_ window: NSWindow) {
             model.window = window
             if window.delegate !== self { original = window.delegate; window.delegate = self }
-            window.titlebarAppearsTransparent = true
-            window.backgroundColor = .black
+            window.titlebarAppearsTransparent = model.performing || model.fullscreen
+            window.backgroundColor = .windowBackgroundColor
             window.titleVisibility = (model.performing || model.fullscreen) ? .hidden : .visible
             window.toolbar?.isVisible = !model.performing && !model.fullscreen
             window.titlebarSeparatorStyle = .none
