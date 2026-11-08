@@ -14,6 +14,21 @@ enum NativeChecks {
         }
         func wait(_ seconds: Double = 0.4) async { try? await Task.sleep(for: .seconds(seconds)) }
         let root = URL(fileURLWithPath: fixture)
+        func checkToolbarHelp() {
+            let items = (model.window?.toolbar?.items ?? []).filter { ToolbarHelp.text(for: $0.label) != nil }
+            check(items.count == 8, "all eight toolbar actions are present")
+            for item in items {
+                let expected = ToolbarHelp.text(for: item.label)
+                check(item.toolTip == expected && item.view?.toolTip == expected, "native hover help: \(item.label)")
+            }
+        }
+        if env["VOLLAGE_TOOLTIP_CHECK"] == "1" {
+            await wait(1); checkToolbarHelp()
+            model.togglePlayback(); await wait(); checkToolbarHelp()
+            model.toggleSidebar(); await wait(); checkToolbarHelp()
+            model.toggleSidebar(); model.togglePlayback(); await wait(); checkToolbarHelp()
+            exit(failures == 0 ? 0 : 1)
+        }
         if env["VOLLAGE_REVIEW_ONLY"] == "1", let directory = env["VOLLAGE_SNAPSHOTS"] {
             try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
             await model.importVideos([root.appendingPathComponent("red.mp4"), root.appendingPathComponent("blue.mp4")])
@@ -48,6 +63,7 @@ enum NativeChecks {
         }
         await model.importVideos([root.appendingPathComponent("red.mp4"), root.appendingPathComponent("blue.mp4")])
         await wait(1)
+        checkToolbarHelp()
         if let window = model.window {
             let originalFrame = window.frame
             let originalCanvas = model.workspaceSize

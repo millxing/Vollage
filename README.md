@@ -79,9 +79,12 @@ Unmodified editing shortcuts apply while the canvas has focus; click the canvas 
 
 ```sh
 tools/selftest.sh
+tools/tooltip-test.sh
 tools/grid-lint.sh
 ```
 
 The self-test uses generated color, portrait, rotated and legacy-codec video, plus two audio tones, in `/tmp`. It verifies actual playback, pause, looping, undo/redo, selection edits, locked/free-region grids, pinned shuffle/count changes, automatic shuffle, scenes, ratings, conversion caching, portable media without originals, recovery storage, per-pixel blending, and recorded video/audio tracks. It opens native output with a frozen legacy storage module in `Tests/Compatibility`, saves it there, and reopens that output and legacy browser-format fixtures natively. It also checks that both source tones reach the recording and captures all inspector tabs in light/dark appearances.
 
 `VOLLAGE_DATA_ROOT` isolates test state. `VOLLAGE_TEST_MEDIA` selects test fixtures; `VOLLAGE_UI_ONLY=1` seeds an interactive test window without running the assertions. No personal videos or projects are used during verification.
+
+`tools/tooltip-test.sh` checks native toolbar tooltip registration for all eight actions and repeats after playback and sidebar changes. SwiftUI `.help` is supplemented on the AppKit toolbar items and host views because this macOS toolbar integration can drop button help.

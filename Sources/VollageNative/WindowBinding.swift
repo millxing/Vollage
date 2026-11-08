@@ -17,6 +17,10 @@ struct WindowBinding: NSViewRepresentable {
             window.titlebarSeparatorStyle = .none
             window.styleMask.insert(.fullSizeContentView)
             window.title = model.title; window.isDocumentEdited = model.dirty
+            // Wait for SwiftUI to finish creating/updating its toolbar host views.
+            DispatchQueue.main.async { [weak window] in
+                if let window { ToolbarHelp.install(in: window) }
+            }
         }
         func windowWillEnterFullScreen(_ notification: Notification) {
             model.fullscreen = true

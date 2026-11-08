@@ -46,10 +46,10 @@ struct NativeCanvas: View {
         .background(EscapeHandler { model.exitPresentation() })
         .toolbar((model.performing || model.fullscreen) ? .hidden : .visible, for: .windowToolbar)
         .toolbar {
-            Button("Add Videos", systemImage: "plus") { model.chooseVideos() }.help("Add videos (⌘I)").disabled(!model.canEdit)
-            Button(model.paused ? "Play All" : "Pause All", systemImage: model.paused ? "play.fill" : "pause.fill") { model.togglePlayback() }.help("Play or pause the composition (Space)")
-            Button("Undo", systemImage: "arrow.uturn.backward") { model.undo() }.disabled(model.undoStack.isEmpty || !model.canEdit).help("Undo (⌘Z)")
-            Button("Shuffle", systemImage: "shuffle") { model.shuffle() }.disabled(model.folder.isEmpty || model.busy).help("Shuffle unlocked videos (⇧G)")
+            Button("Add Videos", systemImage: "plus") { model.chooseVideos() }.help(ToolbarHelp.addVideos).disabled(!model.canEdit)
+            Button(model.paused ? "Play All" : "Pause All", systemImage: model.paused ? "play.fill" : "pause.fill") { model.togglePlayback() }.help(ToolbarHelp.playback)
+            Button("Undo", systemImage: "arrow.uturn.backward") { model.undo() }.disabled(model.undoStack.isEmpty || !model.canEdit).help(ToolbarHelp.undo)
+            Button("Shuffle", systemImage: "shuffle") { model.shuffle() }.disabled(model.folder.isEmpty || model.busy).help(ToolbarHelp.shuffle)
             Spacer()
             Menu {
                 Button("Save Project") { model.saveProject() }.keyboardShortcut("s")
@@ -57,12 +57,12 @@ struct NativeCanvas: View {
                 Button(model.resizingOutput ? "Done Resizing Output Frame" : "Resize Output Frame") { model.toggleOutputResize() }.disabled(!model.canEdit || model.recording != nil)
                 Button("Save Screenshot…") { model.screenshot() }
                 Button(model.recording == nil ? "Record Output…" : "Stop Recording") { model.toggleRecording() }
-            } label: { Label("Save and Output", systemImage: "square.and.arrow.down") }.accessibilityLabel("Save and Output").help("Save projects, PNG screenshots, or MP4 recordings")
-            Button("Clean View", systemImage: "play.rectangle") { model.performing.toggle() }.help("Hide controls (P); return with Escape")
-            Button("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") { model.window?.toggleFullScreen(nil) }.help("Toggle fullscreen (Return)")
+            } label: { Label("Save and Output", systemImage: "square.and.arrow.down") }.accessibilityLabel("Save and Output").help(ToolbarHelp.output)
+            Button("Clean View", systemImage: "play.rectangle") { model.performing.toggle() }.help(ToolbarHelp.cleanView)
+            Button("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") { model.window?.toggleFullScreen(nil) }.help(ToolbarHelp.fullscreen)
             Button(model.sidebarVisible ? "Hide Right Sidebar" : "Show Right Sidebar", systemImage: "sidebar.right") {
                 model.toggleSidebar()
-            }.help("Show or hide the right sidebar (⌘⇧\\)")
+            }.help(ToolbarHelp.sidebar)
         }
         .alert("Vollage", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
         .task {
