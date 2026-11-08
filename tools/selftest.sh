@@ -13,9 +13,9 @@ ffmpeg=${FFMPEG:-$(command -v ffmpeg)}
 export VOLLAGE_TEST_MEDIA="$fixtures"
 export VOLLAGE_DATA_ROOT=/tmp/vollage-native-parity-data
 export VOLLAGE_SNAPSHOTS=/tmp/vollage-native-parity-shots
-"$here/build/Vollage Native.app/Contents/MacOS/VollageNative" --selftest
+"$here/build/Vollage.app/Contents/MacOS/Vollage" --selftest
 node "$here/tools/portable-test.cjs" "$fixtures"
-VOLLAGE_ROUNDTRIP="$fixtures/electron-roundtrip.vollage" "$here/build/Vollage Native.app/Contents/MacOS/VollageNative" --selftest
+VOLLAGE_ROUNDTRIP="$fixtures/electron-roundtrip.vollage" "$here/build/Vollage.app/Contents/MacOS/Vollage" --selftest
 "$ffmpeg" -hide_banner -i "$fixtures/output.mp4" -af volumedetect -vn -f null - 2> "$fixtures/audio-check.log"
 if rg -q 'mean_volume: -inf' "$fixtures/audio-check.log"; then print 'FAIL output audio is silent'; exit 1; fi
 print 'PASS output audio is non-silent'

@@ -2,9 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>com.vollage.native</string>
-<key>CFBundleName</key><string>VollageNative</string>
-<key>CFBundleDisplayName</key><string>Vollage Native</string>
-<key>CFBundleExecutable</key><string>VollageNative</string>
+<key>CFBundleName</key><string>Vollage</string>
+<key>CFBundleDisplayName</key><string>Vollage</string>
+<key>CFBundleExecutable</key><string>Vollage</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleIconName</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
@@ -14,6 +14,6 @@
 <key>LSApplicationCategoryType</key><string>public.app-category.video</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
-<key>CFBundleDocumentTypes</key><array><dict><key>CFBundleTypeName</key><string>Vollage Project</string><key>CFBundleTypeRole</key><string>Editor</string><key>LSHandlerRank</key><string>Alternate</string><key>LSItemContentTypes</key><array><string>com.vollage.project</string></array></dict></array>
+<key>CFBundleDocumentTypes</key><array><dict><key>CFBundleTypeName</key><string>Vollage Project</string><key>CFBundleTypeRole</key><string>Editor</string><key>LSHandlerRank</key><string>Owner</string><key>LSItemContentTypes</key><array><string>com.vollage.project</string></array></dict></array>
 <key>UTExportedTypeDeclarations</key><array><dict><key>UTTypeIdentifier</key><string>com.vollage.project</string><key>UTTypeDescription</key><string>Vollage Project</string><key>UTTypeConformsTo</key><array><string>public.data</string></array><key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>vollage</string></array></dict></dict></array>
 </dict></plist>

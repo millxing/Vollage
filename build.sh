@@ -6,12 +6,12 @@ config=release
 [[ " $* " == *" --debug "* ]] && config=debug
 ./tools/swift.sh build -c "$config"
 cache=${VOLLAGE_BUILD_ROOT:-/tmp/vollage-native-build}
-app="$here/build/Vollage Native.app"
+app="$here/build/Vollage.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp "$cache/package/$config/VollageNative" "$app/Contents/MacOS/VollageNative.new"
-mv -f "$app/Contents/MacOS/VollageNative.new" "$app/Contents/MacOS/VollageNative"
+cp "$cache/package/$config/Vollage" "$app/Contents/MacOS/Vollage.new"
+mv -f "$app/Contents/MacOS/Vollage.new" "$app/Contents/MacOS/Vollage"
 sed "s/__BUILD__/$(date +%Y%m%d%H%M)/" Info.plist.in > "$app/Contents/Info.plist"
-cp "$here/../../desktop/resources/Vollage.icns" "$app/Contents/Resources/AppIcon.icns"
+cp "$here/Resources/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$app"
 echo "Built $app"
 [[ " $* " != *" --open "* ]] || open "$app"

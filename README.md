@@ -1,4 +1,4 @@
-# Vollage Native
+# Vollage
 
 A SwiftUI/AppKit/AVFoundation version of Vollage for macOS 26+, with native editing, portable projects, scenes, folder tools, and output. Motion recording/playback is deliberately excluded. Imported motion is ignored and a notice explains that saving omits it.
 
@@ -8,7 +8,7 @@ A SwiftUI/AppKit/AVFoundation version of Vollage for macOS 26+, with native edit
 ./build.sh --open
 ```
 
-The signed app is created at `build/Vollage Native.app`. Use `--debug` for development. The installed copy at `~/Applications/Vollage Native.app` is separate; building does not automatically replace it. The Electron app is unaffected.
+The signed app is created at `build/Vollage.app`. Use `--debug` for development. The installed copy is `/Applications/Vollage.app`; building does not automatically replace it. This native app is the maintained version of Vollage. The former Electron app has been retired.
 
 `tools/swift.sh` isolates outdated private PackageDescription interfaces in this Mac's Command Line Tools. It copies the matching public interfaces and library to `/tmp/vollage-native-build/toolchain`, selects the existing macOS 26.5 SDK when available, and uses SwiftPM's native build engine. No SDK is copied and no global developer settings change. SwiftPM emits a deprecation notice for this engine. `VOLLAGE_BUILD_ROOT` and `VOLLAGE_SDK` override the defaults.
 
@@ -40,7 +40,7 @@ Portable `.vollage` projects embed original media used by the current compositio
 
 Scenes capture videos, geometry, layer order, playback positions/settings, locks, blending and global pause. Use the Scenes tab to capture/update, name and recall a slot. Previews are saved in the project. Scene recall deliberately replaces the complete composition, including kept and locked videos.
 
-Windows display project names and edited state. Closing edited work offers Save, Discard or Cancel. Saving from that prompt closes the document after success. Finish recording before closing. Recovery snapshots are refreshed after edits and periodically in `~/Library/Application Support/VollageNative/recovery`; interrupted documents reopen. Recovery references local sources/cache files and is not a backup against deleting them. Embedded originals, conversions and decoded recording audio are cached under the same application-support directory.
+Windows display project names and edited state. Closing edited work offers Save, Discard or Cancel. Saving from that prompt closes the document after success. Finish recording before closing. The existing bundle identifier (`com.vollage.native`) and data directory are retained so the rename preserves preferences and cached media. Recovery snapshots are refreshed after edits and periodically in `~/Library/Application Support/VollageNative/recovery`; interrupted documents reopen. Recovery references local sources/cache files and is not a backup against deleting them. Embedded originals, conversions and decoded recording audio are cached under the same application-support directory.
 
 ## Output
 
@@ -82,6 +82,6 @@ tools/selftest.sh
 tools/grid-lint.sh
 ```
 
-The self-test uses generated color, portrait, rotated and legacy-codec video, plus two audio tones, in `/tmp`. It verifies actual playback, pause, looping, undo/redo, selection edits, locked/free-region grids, pinned shuffle/count changes, automatic shuffle, scenes, ratings, conversion caching, portable media without originals, recovery storage, per-pixel blending, and recorded video/audio tracks. It opens native output with the existing Electron storage module, saves it there, and reopens that output and legacy browser-format fixtures natively. It also checks that both source tones reach the recording and captures all inspector tabs in light/dark appearances.
+The self-test uses generated color, portrait, rotated and legacy-codec video, plus two audio tones, in `/tmp`. It verifies actual playback, pause, looping, undo/redo, selection edits, locked/free-region grids, pinned shuffle/count changes, automatic shuffle, scenes, ratings, conversion caching, portable media without originals, recovery storage, per-pixel blending, and recorded video/audio tracks. It opens native output with a frozen legacy storage module in `Tests/Compatibility`, saves it there, and reopens that output and legacy browser-format fixtures natively. It also checks that both source tones reach the recording and captures all inspector tabs in light/dark appearances.
 
 `VOLLAGE_DATA_ROOT` isolates test state. `VOLLAGE_TEST_MEDIA` selects test fixtures; `VOLLAGE_UI_ONLY=1` seeds an interactive test window without running the assertions. No personal videos or projects are used during verification.

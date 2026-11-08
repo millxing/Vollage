@@ -1,4 +1,4 @@
-const { MediaStore } = require('../../../desktop/storage.cjs');
+const { MediaStore } = require('../Tests/Compatibility/legacy-storage.cjs');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 (async () => {

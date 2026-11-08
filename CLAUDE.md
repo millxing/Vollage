@@ -1,4 +1,4 @@
-# Vollage Native
+# Vollage
 
 SwiftUI/AVFoundation macOS app. Read README.md for supported features and limitations.
 
