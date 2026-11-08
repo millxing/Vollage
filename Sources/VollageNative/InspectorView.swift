@@ -20,12 +20,12 @@ struct InspectorView: View {
         }.padding(16).background(.background)
     }
     func toggle(_ title: String, _ path: WritableKeyPath<VideoState, Bool>) -> some View {
-        Toggle(title, isOn: Binding(get: { model.selected?.state[keyPath: path] ?? false }, set: { value in model.edit { $0.state[keyPath: path] = value } }))
+        Toggle(title, isOn: Binding(get: { model.selected?.state[keyPath: path] ?? false }, set: { value in model.edit { $0.state[keyPath: path] = value } })).help(title)
     }
     func slider(_ title: String, _ path: WritableKeyPath<VideoState, Float>, range: ClosedRange<Float>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-            Slider(value: Binding(get: { model.selected?.state[keyPath: path] ?? 0 }, set: { value in model.edit { $0.state[keyPath: path] = value } }), in: range, onEditingChanged: { active in if active { model.beginGesture() } else { model.endGesture() } }).accessibilityLabel(title)
+            Slider(value: Binding(get: { model.selected?.state[keyPath: path] ?? 0 }, set: { value in model.edit { $0.state[keyPath: path] = value } }), in: range, onEditingChanged: { active in if active { model.beginGesture() } else { model.endGesture() } }).accessibilityLabel(title).help(title)
         }
     }
     @ViewBuilder var video: some View {
@@ -34,12 +34,13 @@ struct InspectorView: View {
             Text("Selected controls apply to all selected videos.").font(.caption).foregroundStyle(.secondary)
             Button(clip.state.paused || clip.state.speed == 0 ? "Play Selected" : "Pause Selected", systemImage: clip.state.paused || clip.state.speed == 0 ? "play.fill" : "pause.fill") {
                 model.toggleSelectedPlayback()
-            }.disabled(model.paused)
+            }.disabled(model.paused).help("Play or pause selected videos")
             if model.selection.count == 1 {
-                // The shared frame clock refreshes the current playback position.
-                let _ = model.now
-                Text("\(max(0, clip.player.currentTime().seconds), specifier: "%.1f") / \(clip.duration, specifier: "%.1f") sec").font(.caption).monospacedDigit()
-                Slider(value: Binding(get: { let t = clip.player.currentTime().seconds; return t.isFinite ? min(clip.duration, max(0, t)) : 0 }, set: { model.seek($0) }), in: 0...max(0.01, clip.duration), onEditingChanged: { active in if active { model.beginGesture() } else { model.endGesture() } }).accessibilityLabel("Playback position")
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    Text("\(max(0, clip.player.currentTime().seconds), specifier: "%.1f") / \(clip.duration, specifier: "%.1f") sec").font(.caption).monospacedDigit()
+                }
+                Slider(value: Binding(get: { let t = clip.player.currentTime().seconds; return t.isFinite ? min(clip.duration, max(0, t)) : 0 }, set: { model.seek($0) }), in: 0...max(0.01, clip.duration), onEditingChanged: { active in if active { model.beginGesture() } else { model.endGesture() } }).accessibilityLabel("Playback position").help("Seek within the selected video")
+
             }
             slider("Speed · \(Int(clip.state.speed * 100))%", \.speed, range: 0...16)
             slider("Volume · \(Int(clip.state.volume * 100))%", \.volume, range: 0...1)
@@ -53,7 +54,7 @@ struct InspectorView: View {
             toggle("Lock Position", \.locked).help("Prevent dragging, resizing and grid movement (⇧K)")
             Button("Double Size") { model.edit { if !$0.state.locked { $0.state.width *= 2; $0.state.height *= 2; model.document.gridActive = false } } }
             HStack { Button("Forward") { model.layer(true) }; Button("Backward") { model.layer(false) } }
-            HStack { Button("Duplicate") { model.duplicate() }; Button("Delete", role: .destructive) { model.removeSelection() } }
+            HStack { Button("Duplicate") { model.duplicate() }.help("Duplicate selected videos (⌘D or Option-drag)"); Button("Delete", role: .destructive) { model.removeSelection() }.help("Delete selected videos (Delete)") }
             Divider()
             Picker("Rating", selection: Binding(get: { clip.rating }, set: { model.rate($0) })) { Text("Unrated").tag(0); ForEach(1...10, id: \.self) { Text(String($0)).tag($0) } }.disabled(model.selection.count != 1)
             Button("Open in Default Player") { NSWorkspace.shared.open(clip.originalURL) }

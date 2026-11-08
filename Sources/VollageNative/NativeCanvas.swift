@@ -34,13 +34,17 @@ struct NativeCanvas: View {
                     }
                 }.allowsHitTesting(model.busy || model.recording != nil)
             }
-            if !model.performing { InspectorView(model: model).frame(width: 304).disabled(model.busy) }
+            if !model.performing && model.sidebarVisible { InspectorView(model: model).frame(width: CanvasModel.sidebarWidth).disabled(model.busy) }
         }
+        .ignoresSafeArea(.container, edges: (model.performing || model.fullscreen) ? .top : [])
+        .background(Color.black)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .frame(minWidth: !model.performing && model.sidebarVisible ? 960 : 656, minHeight: 640)
         .navigationTitle(model.title)
         .focusedSceneValue(\.canvasModel, model)
         .background(WindowBinding(model: model))
-        .background(EscapeHandler { guard model.performing else { return false }; model.performing = false; return true })
-        .toolbar(model.performing ? .hidden : .visible, for: .windowToolbar)
+        .background(EscapeHandler { model.exitPresentation() })
+        .toolbar((model.performing || model.fullscreen) ? .hidden : .visible, for: .windowToolbar)
         .toolbar {
             Button("Add Videos", systemImage: "plus") { model.chooseVideos() }.help("Add videos (⌘I)").disabled(!model.canEdit)
             Button(model.paused ? "Play All" : "Pause All", systemImage: model.paused ? "play.fill" : "pause.fill") { model.togglePlayback() }.help("Play or pause the composition (Space)")
@@ -55,6 +59,9 @@ struct NativeCanvas: View {
             } label: { Label("Save and Output", systemImage: "square.and.arrow.up") }.help("Save projects, PNG screenshots, or MP4 recordings")
             Button("Clean View", systemImage: "play.rectangle") { model.performing.toggle() }.help("Hide controls (P); return with Escape")
             Button("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") { model.window?.toggleFullScreen(nil) }.help("Toggle fullscreen (Return)")
+            Button(model.sidebarVisible ? "Hide Right Sidebar" : "Show Right Sidebar", systemImage: "sidebar.right") {
+                model.toggleSidebar()
+            }.help("Show or hide the right sidebar (⌘⇧\\)")
         }
         .alert("Vollage", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
         .task {

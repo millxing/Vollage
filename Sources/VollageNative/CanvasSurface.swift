@@ -17,6 +17,7 @@ final class CanvasView: NSView {
     var resizeCorner: Int?
     var originalBounds = CGRect.zero
     var dragging = false
+    var duplicateOnDrag = false
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(_ model: CanvasModel) {
@@ -83,6 +84,7 @@ final class CanvasView: NSView {
     func hit(_ point: CGPoint) -> Clip? { model.clips.reversed().first { rect($0.state).contains(point) } }
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self); guard model.canEdit else { return }
+        duplicateOnDrag = event.modifierFlags.contains(.option)
         anchor = convert(event.locationInWindow, from: nil); resizeCorner = nil; dragging = false
         // Corner hits have priority over overlapping video content.
         for clip in model.selection where !clip.state.locked {
@@ -99,7 +101,14 @@ final class CanvasView: NSView {
     }
     override func mouseDragged(with event: NSEvent) {
         guard model.canEdit, !originals.isEmpty else { return }
-        if !dragging { model.beginGesture(); dragging = true; model.document.gridActive = false }
+        if !dragging {
+            model.beginGesture()
+            if duplicateOnDrag && resizeCorner == nil {
+                model.duplicate(offset: 0)
+                originals = Dictionary(uniqueKeysWithValues: model.selection.filter { !$0.state.locked }.map { ($0.id, $0.state) })
+            }
+            dragging = true; model.document.gridActive = false
+        }
         let point = convert(event.locationInWindow, from: nil)
         if let corner = resizeCorner {
             let pivot = corners(originalBounds)[3-corner], start = corners(originalBounds)[corner]
@@ -123,7 +132,7 @@ final class CanvasView: NSView {
         guard !event.modifierFlags.contains(.command), !event.modifierFlags.contains(.control) else { return false }
         let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
         let shift = event.modifierFlags.contains(.shift)
-        if event.keyCode == 53 { model.performing = false; return true }
+        if event.keyCode == 53 { return model.exitPresentation() }
         if key == " " { model.togglePlayback(); return true }
         if key == "p" { model.performing.toggle(); return true }
         if key == "h" { model.screenshot(); return true }
@@ -133,6 +142,7 @@ final class CanvasView: NSView {
         if let number = Int(key) ?? (shift ? numberKeys[event.keyCode] : nil), (1...9).contains(number) { if shift { model.captureScene(number-1) } else { model.recallScene(number-1) }; return true }
         if key == "g", shift { model.shuffle(); return true }
         guard model.canEdit else { return false }
+        if event.keyCode == 51 || event.keyCode == 117 { model.removeSelection(); return true }
         switch key {
         case "g": model.arrange()
         case "k": if shift { let flag = !(model.selected?.state.locked ?? false); model.edit { $0.state.locked = flag } } else { let flag = !(model.selected?.state.pinned ?? false); model.edit { $0.state.pinned = flag } }

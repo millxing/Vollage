@@ -10,7 +10,10 @@ import AVFoundation
     var selected: Clip? { clips.first { $0.id == primaryID } }
     var selection: [Clip] { clips.filter { selectedIDs.contains($0.id) } }
     var document = DocumentState()
+    static let sidebarWidth: CGFloat = 304
+    var sidebarVisible = true
     var performing = false
+    var fullscreen = false
     var panel = "Video"
     var error: String?
     var status = ""
@@ -36,6 +39,33 @@ import AVFoundation
     var paused: Bool { document.paused }
     var canEdit: Bool { !performing && !busy }
     var title: String { projectURL?.deletingPathExtension().lastPathComponent ?? "Untitled" }
+    func toggleSidebar() {
+        let opening = !sidebarVisible
+        guard let window, !performing, !window.styleMask.contains(.fullScreen) else {
+            sidebarVisible = opening
+            return
+        }
+        var frame = window.frame
+        let minimumWidth: CGFloat = opening ? 960 : 656
+        frame.size.width = max(minimumWidth, frame.width + (opening ? Self.sidebarWidth : -Self.sidebarWidth))
+        if let screen = window.screen {
+            let available = screen.visibleFrame
+            frame.size.width = min(frame.width, available.width)
+            // Keep the left edge fixed unless the expanded window would go offscreen.
+            frame.origin.x = max(available.minX, min(frame.minX, available.maxX - frame.width))
+        }
+        sidebarVisible = opening
+        window.minSize.width = minimumWidth
+        window.setFrame(frame, display: true)
+    }
+    @discardableResult
+    func exitPresentation() -> Bool {
+        let isFullscreen = window?.styleMask.contains(.fullScreen) == true
+        guard performing || isFullscreen else { return false }
+        performing = false
+        if isFullscreen { window?.toggleFullScreen(nil) }
+        return true
+    }
     func snapshot() -> DocumentState { var value = document; value.videos = clips.map { $0.snapshot() }; return value }
     func apply(_ state: DocumentState) {
         let old = Dictionary(uniqueKeysWithValues: clips.map { ($0.id, $0) })
@@ -79,9 +109,9 @@ import AVFoundation
         selection.forEach { $0.player.pause() }; clips.removeAll { selectedIDs.contains($0.id) }; selectedIDs = []; primaryID = nil; changed()
     }
     func clear() { guard canEdit else { return }; checkpoint(); clips.forEach { $0.player.pause() }; clips = []; selectedIDs = []; primaryID = nil; changed() }
-    func duplicate() {
+    func duplicate(offset: Double = 0.1) {
         guard canEdit else { return }; checkpoint()
-        let copies = selection.map { clip in var value = clip.snapshot(); value.id = UUID().uuidString; value.x += 0.1; value.y += 0.1; return Clip(value, globalPaused: paused) }
+        let copies = selection.map { clip in var value = clip.snapshot(); value.id = UUID().uuidString; value.x += offset; value.y += offset; return Clip(value, globalPaused: paused) }
         clips += copies; selectedIDs = Set(copies.map(\.id)); primaryID = copies.last?.id; changed()
     }
     func layer(_ forward: Bool) {
@@ -117,7 +147,7 @@ import AVFoundation
         }
         guard !Task.isCancelled else { return }
         if !ready.isEmpty { checkpoint(); clips += ready.map { Clip($0, globalPaused: paused) }; arrange(recordHistory: false); changed(); refreshRatings() }
-        status = "Added \(ready.count) videos"
+        status = ""
         if !failures.isEmpty { error = failures.joined(separator: "\n") }
     }
     func chooseVideos() {

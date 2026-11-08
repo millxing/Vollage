@@ -5,8 +5,16 @@ extension CanvasModel {
     func workspaceChanged(_ size: CGSize) {
         workspaceSize = size
         guard !document.fixedCanvas, size.width > 0, size.height > 0 else { return }
+        guard document.canvasWidth != size.width.rounded() || document.canvasHeight != size.height.rounded() else { return }
         document.canvasWidth = size.width.rounded(); document.canvasHeight = size.height.rounded()
         if document.gridActive { arrange(recordHistory: false) }
+        else {
+            for clip in clips {
+                let height = clip.state.width * document.canvasWidth / document.canvasHeight / clip.state.aspect
+                clip.state.y += (clip.state.height - height) / 2
+                clip.state.height = height
+            }
+        }
     }
     func arrange(recordHistory: Bool = true) {
         if recordHistory && !canEdit { return }

@@ -33,6 +33,16 @@ enum NativeChecks {
         }
         await model.importVideos([root.appendingPathComponent("red.mp4"), root.appendingPathComponent("blue.mp4")])
         await wait(1)
+        if let window = model.window {
+            let originalFrame = window.frame
+            let originalCanvas = model.workspaceSize
+            model.toggleSidebar(); await wait()
+            check(!model.sidebarVisible && abs(window.frame.width - (originalFrame.width - CanvasModel.sidebarWidth)) < 2, "closing sidebar shrinks window outward")
+            check(abs(model.workspaceSize.width - originalCanvas.width) < 2, "closing sidebar preserves canvas width")
+            model.toggleSidebar(); await wait()
+            check(model.sidebarVisible && abs(window.frame.width - originalFrame.width) < 2, "opening sidebar restores window width")
+            check(abs(model.workspaceSize.width - originalCanvas.width) < 2, "opening sidebar preserves canvas width")
+        }
         check(model.clips.count == 2, "import real H.264 videos")
         guard model.clips.count == 2 else { exit(1) }
         check(model.clips.allSatisfy { $0.player.currentItem?.status == .readyToPlay }, "AVFoundation ready for playback")

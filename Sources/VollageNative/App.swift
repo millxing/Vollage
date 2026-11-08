@@ -6,7 +6,7 @@ import SwiftUI
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     var body: some Scene {
         WindowGroup("Vollage", for: UUID.self) { $request in
-            NativeCanvas(request: request).frame(minWidth: 960, minHeight: 640)
+            NativeCanvas(request: request)
         }.defaultSize(width: 1320, height: 840).windowToolbarStyle(.unified).commands { CanvasCommands() }
     }
 }
@@ -64,6 +64,10 @@ struct CanvasCommands: Commands {
         CommandGroup(after: .pasteboard) {
             Button("Select All Videos") { model?.selectAll() }.keyboardShortcut("a")
             Button("Duplicate Videos") { model?.duplicate() }.keyboardShortcut("d")
+        }
+        CommandGroup(after: .toolbar) {
+            Button("Toggle Right Sidebar") { model?.toggleSidebar() }
+                .keyboardShortcut("\\", modifiers: [.command, .shift])
         }
         CommandMenu("Canvas") {
             Button("Play / Pause All") { model?.togglePlayback() }

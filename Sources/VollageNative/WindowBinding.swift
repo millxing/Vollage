@@ -10,7 +10,26 @@ struct WindowBinding: NSViewRepresentable {
         func bind(_ window: NSWindow) {
             model.window = window
             if window.delegate !== self { original = window.delegate; window.delegate = self }
+            window.titlebarAppearsTransparent = true
+            window.backgroundColor = .black
+            window.titleVisibility = (model.performing || model.fullscreen) ? .hidden : .visible
+            window.toolbar?.isVisible = !model.performing && !model.fullscreen
+            window.titlebarSeparatorStyle = .none
+            window.styleMask.insert(.fullSizeContentView)
             window.title = model.title; window.isDocumentEdited = model.dirty
+        }
+        func windowWillEnterFullScreen(_ notification: Notification) {
+            model.fullscreen = true
+            if let window = notification.object as? NSWindow { bind(window) }
+            original?.windowWillEnterFullScreen?(notification)
+        }
+        func windowDidExitFullScreen(_ notification: Notification) {
+            model.fullscreen = false
+            if let window = notification.object as? NSWindow { bind(window) }
+            original?.windowDidExitFullScreen?(notification)
+        }
+        func window(_ window: NSWindow, willUseFullScreenPresentationOptions proposedOptions: NSApplication.PresentationOptions) -> NSApplication.PresentationOptions {
+            proposedOptions.union([.autoHideToolbar, .autoHideMenuBar, .autoHideDock])
         }
         func windowShouldClose(_ sender: NSWindow) -> Bool { model.canClose() }
         func windowWillClose(_ notification: Notification) { model.close(); original?.windowWillClose?(notification) }
