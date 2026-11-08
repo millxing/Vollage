@@ -12,6 +12,7 @@ import AVFoundation
     var document = DocumentState()
     static let sidebarWidth: CGFloat = 304
     var sidebarVisible = true
+    var resizingOutput = false
     var performing = false
     var fullscreen = false
     var panel = "Video"

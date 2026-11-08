@@ -8,7 +8,7 @@ A SwiftUI/AppKit/AVFoundation version of Vollage for macOS 26+, with native edit
 ./build.sh --open
 ```
 
-The signed app is created at `build/Vollage.app`. Use `--debug` for development. The installed copy is `/Applications/Vollage.app`; building does not automatically replace it. This native app is the maintained version of Vollage. The former Electron app has been retired.
+The signed app is created at `build/Vollage.app`. Use `--debug` for development. Every build also installs to `~/Applications/Vollage.app`; `--open` opens that installed copy. This native app is the maintained version of Vollage. The former Electron app has been retired.
 
 `tools/swift.sh` isolates outdated private PackageDescription interfaces in this Mac's Command Line Tools. It copies the matching public interfaces and library to `/tmp/vollage-native-build/toolchain`, selects the existing macOS 26.5 SDK when available, and uses SwiftPM's native build engine. No SDK is copied and no global developer settings change. SwiftPM emits a deprecation notice for this engine. `VOLLAGE_BUILD_ROOT` and `VOLLAGE_SDK` override the defaults.
 
@@ -44,7 +44,7 @@ Windows display project names and edited state. Closing edited work offers Save,
 
 ## Output
 
-Window Size fills the available canvas; fixed HD, Full HD, 4K, square and portrait presets preserve an output aspect ratio. Preview, screenshots and recordings share the same Core Image compositor, including mirrored video and Normal, Screen, Multiply, Difference and Overlay blending.
+Resize Output Frame (in Setup or Save and Output) shows draggable edges and corners. Resizing changes the output boundary while preserving video pixel sizes and positions, and supports undo/redo. Escape or Done Resizing finishes. New compositions use a fixed Full HD frame independent of the app window. Output dimensions are locked during recording. Window Size fills the available canvas; fixed HD, Full HD, 4K, square and portrait presets preserve an output aspect ratio. Preview, screenshots and recordings share the same Core Image compositor, including mirrored video and Normal, Screen, Multiply, Difference and Overlay blending.
 
 Save Screenshot writes a PNG at canvas resolution. Record Output streams H.264 video and mixed stereo AAC audio to an MP4. Source audio respects mute, volume, pause and speed. FFmpeg prepares decoded audio in a disk cache; no microphone or screen-recording permission is needed for composition output. A recording badge and Stop control remain available in clean view. Real-time performance depends on media, video count, resolution and hardware; overloaded rendering can drop frames.
 

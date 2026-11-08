@@ -22,6 +22,14 @@ final class CanvasView: NSView {
     var originalBounds = CGRect.zero
     var dragging = false
     var duplicateOnDrag = false
+    var outputHandle: Int?
+    var outputStart = CGRect.zero
+    var outputPreview: CGRect?
+    var outputBefore: DocumentState?
+    var editingOutput: Bool { model.resizingOutput && model.canEdit && model.recording == nil }
+    func outputHandles(_ box: CGRect) -> [CGPoint] {
+        corners(box) + [CGPoint(x: box.midX, y: box.minY), CGPoint(x: box.maxX, y: box.midY), CGPoint(x: box.midX, y: box.maxY), CGPoint(x: box.minX, y: box.midY)]
+    }
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(_ model: CanvasModel) {
@@ -61,15 +69,17 @@ final class CanvasView: NSView {
     func stopKeys() { if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }; keyMonitor = nil }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     var canvas: CGRect {
+        if let outputPreview, editingOutput { return outputPreview }
         guard model.document.fixedCanvas || model.performing else { return bounds }
         let ratio = model.document.canvasWidth / model.document.canvasHeight
-        let width = min(bounds.width, bounds.height * ratio), height = min(bounds.height, bounds.width / ratio)
+        let available = editingOutput ? bounds.insetBy(dx: 32, dy: 32) : bounds
+        let width = min(available.width, available.height * ratio), height = min(available.height, available.width / ratio)
         return CGRect(x: (bounds.width-width)/2, y: (bounds.height-height)/2, width: width, height: height)
     }
     override func layout() { super.layout(); model.workspaceChanged(bounds.size) }
     func rect(_ state: VideoState) -> CGRect { CGRect(x: canvas.minX + state.x * canvas.width, y: canvas.minY + state.y * canvas.height, width: state.width * canvas.width, height: state.height * canvas.height) }
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.black.setFill(); bounds.fill()
+        NSColor.darkGray.setFill(); bounds.fill()
         guard canvas.width > 0, canvas.height > 0 else { return }
         let size = CGSize(width: canvas.width.rounded(), height: canvas.height.rounded())
         let image = model.compositor.image(clips: model.clips, size: size)
@@ -78,7 +88,7 @@ final class CanvasView: NSView {
         }
         guard !model.performing else { return }
         NSGraphicsContext.saveGraphicsState(); NSBezierPath(rect: canvas).addClip()
-        for clip in model.selection {
+        for clip in model.selection where !editingOutput {
             let box = rect(clip.state)
             (clip.state.locked ? NSColor.systemOrange : NSColor.controlAccentColor).setStroke()
             let border = NSBezierPath(rect: box); border.lineWidth = 2
@@ -90,6 +100,12 @@ final class CanvasView: NSView {
             }
         }
         NSGraphicsContext.restoreGraphicsState()
+        if editingOutput {
+            NSColor.white.setStroke()
+            let border = NSBezierPath(rect: canvas); border.lineWidth = 2; border.stroke()
+            NSColor.white.setFill()
+            for point in outputHandles(canvas) { CGRect(x: point.x-4, y: point.y-4, width: 8, height: 8).fill() }
+        }
     }
     func corners(_ box: CGRect) -> [CGPoint] { [CGPoint(x: box.minX, y: box.minY), CGPoint(x: box.maxX, y: box.minY), CGPoint(x: box.minX, y: box.maxY), CGPoint(x: box.maxX, y: box.maxY)] }
     func hit(_ point: CGPoint) -> Clip? { model.clips.reversed().first { rect($0.state).contains(point) } }
@@ -97,6 +113,12 @@ final class CanvasView: NSView {
         window?.makeFirstResponder(self); guard model.canEdit else { return }
         duplicateOnDrag = event.modifierFlags.contains(.option)
         anchor = convert(event.locationInWindow, from: nil); resizeCorner = nil; dragging = false
+        if editingOutput {
+            originals = [:]
+            outputHandle = outputHandles(canvas).firstIndex { hypot($0.x-anchor.x, $0.y-anchor.y) < 12 }
+            outputStart = canvas; outputBefore = model.snapshot()
+            return
+        }
         // Corner hits have priority over overlapping video content.
         for clip in model.selection where !clip.state.locked {
             if let corner = corners(rect(clip.state)).firstIndex(where: { hypot($0.x-anchor.x, $0.y-anchor.y) < 10 }) { resizeCorner = corner; break }
@@ -111,6 +133,24 @@ final class CanvasView: NSView {
         originalBounds = originals.values.map(rect).reduce(CGRect.null) { $0.union($1) }
     }
     override func mouseDragged(with event: NSEvent) {
+        if editingOutput, let handle = outputHandle, let before = outputBefore {
+            if !dragging { model.beginGesture(); dragging = true }
+            let point = convert(event.locationInWindow, from: nil)
+            var left = outputStart.minX, right = outputStart.maxX
+            var top = outputStart.minY, bottom = outputStart.maxY
+            let minimum = 64.0
+            if [0, 2, 7].contains(handle) { left = max(bounds.minX+12, min(point.x, right-minimum)) }
+            if [1, 3, 5].contains(handle) { right = min(bounds.maxX-12, max(point.x, left+minimum)) }
+            if [0, 1, 4].contains(handle) { top = max(bounds.minY+12, min(point.y, bottom-minimum)) }
+            if [2, 3, 6].contains(handle) { bottom = min(bounds.maxY-12, max(point.y, top+minimum)) }
+            let scale = before.canvasWidth / outputStart.width
+            let width = max(2, ((right-left)*scale/2).rounded()*2)
+            let height = max(2, ((bottom-top)*scale/2).rounded()*2)
+            outputPreview = CGRect(x: left, y: top, width: width/scale, height: height/scale)
+            model.resizeOutput(to: CGSize(width: width, height: height), origin: CGPoint(x: (left-outputStart.minX)*scale, y: (top-outputStart.minY)*scale), from: before)
+            needsDisplay = true
+            return
+        }
         guard model.canEdit, !originals.isEmpty else { return }
         if !dragging {
             model.beginGesture()
@@ -135,7 +175,7 @@ final class CanvasView: NSView {
         }
         needsDisplay = true
     }
-    override func mouseUp(with event: NSEvent) { if dragging { model.endGesture() }; dragging = false; originals = [:] }
+    override func mouseUp(with event: NSEvent) { if dragging { model.endGesture() }; dragging = false; originals = [:]; outputHandle = nil; outputBefore = nil; outputPreview = nil; needsDisplay = true }
     override func keyDown(with event: NSEvent) {
         if handleKey(event) { return }; super.keyDown(with: event)
     }
@@ -143,7 +183,7 @@ final class CanvasView: NSView {
         guard !event.modifierFlags.contains(.command), !event.modifierFlags.contains(.control) else { return false }
         let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
         let shift = event.modifierFlags.contains(.shift)
-        if event.keyCode == 53 { return model.exitPresentation() }
+        if event.keyCode == 53 { if model.resizingOutput { model.resizingOutput = false; return true }; return model.exitPresentation() }
         if key == " " { model.togglePlayback(); return true }
         if key == "p" { model.performing.toggle(); return true }
         if key == "h" { model.screenshot(); return true }

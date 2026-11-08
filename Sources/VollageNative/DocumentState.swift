@@ -27,7 +27,7 @@ nonisolated struct DocumentState: Codable, Equatable, Sendable {
     var scenes: [SceneState?] = Array(repeating: nil, count: 9)
     var paused = false
     var canvasWidth = 1920.0, canvasHeight = 1080.0
-    var fixedCanvas = false
+    var fixedCanvas = true
     var folderPath = ""
     var count = 5
     var seconds = 30.0

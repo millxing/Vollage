@@ -58,6 +58,38 @@ enum NativeChecks {
             check(model.sidebarVisible && abs(window.frame.width - originalFrame.width) < 2, "opening sidebar restores window width")
             check(abs(model.workspaceSize.width - originalCanvas.width) < 2, "opening sidebar preserves canvas width")
         }
+        if let surface = model.window?.contentView.flatMap({ findCanvas(in: $0) }) {
+            let before = model.snapshot()
+            model.toggleOutputResize()
+            let frame = surface.canvas
+            let start = CGPoint(x: frame.maxX, y: frame.midY)
+            let end = CGPoint(x: start.x-80, y: start.y)
+            func mouse(_ type: NSEvent.EventType, _ point: CGPoint) -> NSEvent {
+                NSEvent.mouseEvent(with: type, location: surface.convert(point, to: nil), modifierFlags: [], timestamp: 0, windowNumber: model.window!.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+            }
+            surface.mouseDown(with: mouse(.leftMouseDown, start))
+            surface.mouseDragged(with: mouse(.leftMouseDragged, end))
+            surface.mouseUp(with: mouse(.leftMouseUp, end))
+            check(model.document.fixedCanvas && model.document.canvasWidth < before.canvasWidth && model.document.canvasHeight == before.canvasHeight, "dragging output edge changes only output width")
+            let old = before.videos[0], resized = model.clips[0].state
+            check(abs(old.width*before.canvasWidth-resized.width*model.document.canvasWidth) < 0.01 && abs(old.x*before.canvasWidth-resized.x*model.document.canvasWidth) < 0.01, "output resize preserves video pixels and placement")
+            let resizedWidth = model.document.canvasWidth
+            model.workspaceChanged(CGSize(width: 900, height: 600))
+            check(model.document.canvasWidth == resizedWidth, "fixed output is independent of workspace size")
+            model.undo(); check(model.document.canvasWidth == before.canvasWidth, "undo restores output frame")
+            model.redo(); check(model.document.canvasWidth == resizedWidth, "redo restores resized frame")
+            let cornerStart = surface.canvas
+            let cornerPoint = CGPoint(x: cornerStart.maxX, y: cornerStart.maxY)
+            surface.mouseDown(with: mouse(.leftMouseDown, cornerPoint))
+            surface.mouseDragged(with: mouse(.leftMouseDragged, CGPoint(x: cornerPoint.x-40, y: cornerPoint.y-40)))
+            surface.mouseUp(with: mouse(.leftMouseUp, cornerPoint))
+            check(model.document.canvasWidth < resizedWidth && model.document.canvasHeight < before.canvasHeight, "dragging output corner changes both dimensions")
+            if let png = model.compositor.png(clips: model.clips, size: CGSize(width: model.document.canvasWidth, height: model.document.canvasHeight)), let image = NSBitmapImageRep(data: png) {
+                check(image.pixelsWide == Int(model.document.canvasWidth) && image.pixelsHigh == Int(model.document.canvasHeight), "export uses resized output dimensions")
+            } else { check(false, "resized output PNG renders") }
+            model.apply(before); model.resizingOutput = false
+            model.workspaceSize = surface.bounds.size
+        }
         check(model.clips.count == 2, "import real H.264 videos")
         guard model.clips.count == 2 else { exit(1) }
         check(model.clips.allSatisfy { $0.player.currentItem?.status == .readyToPlay }, "AVFoundation ready for playback")
@@ -185,10 +217,20 @@ enum NativeChecks {
                     model.panel = panel; await wait(0.4); await capture("\(directory)/\(panel.lowercased())-\(mode).png", model, check)
                 }
             }
+            model.panel = "Setup"; model.resizingOutput = true
+            for mode in ["light", "dark"] {
+                NSApp.appearance = NSAppearance(named: mode == "light" ? .aqua : .darkAqua)
+                await wait(); await capture("\(directory)/output-frame-\(mode).png", model, check)
+            }
+            model.resizingOutput = false
             if env["VOLLAGE_REVIEW"] == "1" { await ReviewEvidence.capture(model, directory: directory, check: check) }
             model.performing = true; await wait(); await capture("\(directory)/clean.png", model, check); model.performing = false
         }
         if CommandLine.arguments.contains("--selftest") { exit(failures == 0 ? 0 : 1) }
+    }
+    static func findCanvas(in view: NSView) -> CanvasView? {
+        if let canvas = view as? CanvasView { return canvas }
+        return view.subviews.lazy.compactMap { findCanvas(in: $0) }.first
     }
     static func capture(_ path: String, _ model: CanvasModel, _ check: (Bool, String) -> Void) async {
         guard let window = model.window else { check(false, "window exists"); return }

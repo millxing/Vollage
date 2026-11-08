@@ -10,7 +10,7 @@ struct NativeCanvas: View {
         HStack(spacing: 0) {
             ZStack {
                 CanvasSurface(model: model)
-                if model.clips.isEmpty && !model.performing {
+                if model.clips.isEmpty && !model.performing && !model.resizingOutput {
                     ContentUnavailableView {
                         Label("Make a moving collage", systemImage: "rectangle.on.rectangle")
                     } description: { Text("Add videos or choose a folder. Your media stays on this Mac.") } actions: {
@@ -54,6 +54,7 @@ struct NativeCanvas: View {
             Menu {
                 Button("Save Project") { model.saveProject() }.keyboardShortcut("s")
                 Button("Save Project As…") { model.saveProject(copy: true) }.keyboardShortcut("s", modifiers: [.command, .shift])
+                Button(model.resizingOutput ? "Done Resizing Output Frame" : "Resize Output Frame") { model.toggleOutputResize() }.disabled(!model.canEdit || model.recording != nil)
                 Button("Save Screenshot…") { model.screenshot() }
                 Button(model.recording == nil ? "Record Output…" : "Stop Recording") { model.toggleRecording() }
             } label: { Label("Save and Output", systemImage: "square.and.arrow.down") }.accessibilityLabel("Save and Output").help("Save projects, PNG screenshots, or MP4 recordings")

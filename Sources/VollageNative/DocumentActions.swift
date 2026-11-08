@@ -79,6 +79,8 @@ extension CanvasModel {
         guard !busy else { return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.mpeg4Movie]; panel.nameFieldStringValue = title + ".mp4"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        resizingOutput = false
+        if !document.fixedCanvas { checkpoint(); document.fixedCanvas = true; changed() }
         busy = true; status = "Preparing output audio…"
         Task {
             defer { busy = false }

@@ -4,7 +4,7 @@ import CoreGraphics
 extension CanvasModel {
     func workspaceChanged(_ size: CGSize) {
         workspaceSize = size
-        guard !performing, !document.fixedCanvas, size.width > 0, size.height > 0 else { return }
+        guard !performing, !document.fixedCanvas, recording == nil, size.width > 0, size.height > 0 else { return }
         guard document.canvasWidth != size.width.rounded() || document.canvasHeight != size.height.rounded() else { return }
         document.canvasWidth = size.width.rounded(); document.canvasHeight = size.height.rounded()
         if document.gridActive { arrange(recordHistory: false) }
@@ -57,10 +57,35 @@ extension CanvasModel {
         document.gridActive = true
         if recordHistory { changed() }
     }
+    func toggleOutputResize() {
+        guard canEdit, recording == nil else { return }
+        resizingOutput.toggle()
+        if resizingOutput && !document.fixedCanvas {
+            checkpoint(); document.fixedCanvas = true; changed()
+        }
+    }
+    // Keep source pixels in place as the output boundary changes, rather than reflowing videos.
+    func resizeOutput(to size: CGSize, origin: CGPoint, from before: DocumentState) {
+        guard canEdit, recording == nil else { return }
+        document.fixedCanvas = true
+        document.canvasWidth = size.width; document.canvasHeight = size.height
+        document.gridActive = false
+        let states = Dictionary(uniqueKeysWithValues: before.videos.map { ($0.id, $0) })
+        for clip in clips {
+            guard let old = states[clip.id] else { continue }
+            clip.state.x = (old.x * before.canvasWidth - origin.x) / size.width
+            clip.state.y = (old.y * before.canvasHeight - origin.y) / size.height
+            clip.state.width = old.width * before.canvasWidth / size.width
+            clip.state.height = old.height * before.canvasHeight / size.height
+        }
+    }
     func setCanvas(_ width: Double, _ height: Double) {
         guard canEdit, recording == nil else { return }; checkpoint()
+        let before = snapshot()
+        let size = CGSize(width: width > 0 ? width : workspaceSize.width.rounded(), height: width > 0 ? height : workspaceSize.height.rounded())
+        guard size.width >= 2, size.height >= 2 else { return }
+        resizeOutput(to: size, origin: CGPoint(x: (before.canvasWidth-size.width)/2, y: (before.canvasHeight-size.height)/2), from: before)
         document.fixedCanvas = width > 0
-        if width > 0 { document.canvasWidth = width; document.canvasHeight = height } else { document.canvasWidth = workspaceSize.width.rounded(); document.canvasHeight = workspaceSize.height.rounded() }
-        arrange(recordHistory: false); changed()
+        resizingOutput = false; changed()
     }
 }

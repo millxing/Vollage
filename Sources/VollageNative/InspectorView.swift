@@ -211,6 +211,9 @@ struct InspectorView: View {
                     if model.document.fixedCanvas { Text("Current · \(Int(model.document.canvasWidth)) × \(Int(model.document.canvasHeight))").tag("\(Int(model.document.canvasWidth))x\(Int(model.document.canvasHeight))") }
                     Text("Window Size").tag("window"); Text("HD · 1280 × 720").tag("1280x720"); Text("Full HD · 1920 × 1080").tag("1920x1080"); Text("4K · 3840 × 2160").tag("3840x2160"); Text("Square · 1080 × 1080").tag("1080x1080"); Text("Portrait · 1080 × 1920").tag("1080x1920")
                 }.disabled(model.recording != nil)
+                Button(model.resizingOutput ? "Done Resizing" : "Resize Output Frame") { model.toggleOutputResize() }.disabled(model.recording != nil)
+                Text(model.resizingOutput ? "Drag the white edges or corners. Escape finishes resizing." : "The canvas frame is the area saved to PNG and MP4.").foregroundStyle(.secondary)
+                Text("Output: \(Int(model.document.canvasWidth)) × \(Int(model.document.canvasHeight)) pixels").monospacedDigit()
                 Button("Arrange Grid") { model.arrange() }
             }
             Divider()
