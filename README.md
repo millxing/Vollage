@@ -8,7 +8,7 @@ A SwiftUI/AppKit/AVFoundation version of Vollage for macOS 26+, with native edit
 ./build.sh --open
 ```
 
-The signed app is created at `build/Vollage.app`. Use `--debug` for development. Every build also installs to `~/Applications/Vollage.app`; `--open` opens that installed copy. This native app is the maintained version of Vollage. The former Electron app has been retired.
+The signed app is created at `build/Vollage.app`. Use `--debug` for development. Every build also installs to `/Applications/Vollage.app`; `--open` opens that installed copy. This native app is the maintained version of Vollage. The former Electron app has been retired.
 
 `tools/swift.sh` isolates outdated private PackageDescription interfaces in this Mac's Command Line Tools. It copies the matching public interfaces and library to `/tmp/vollage-native-build/toolchain`, selects the existing macOS 26.5 SDK when available, and uses SwiftPM's native build engine. No SDK is copied and no global developer settings change. SwiftPM emits a deprecation notice for this engine. `VOLLAGE_BUILD_ROOT` and `VOLLAGE_SDK` override the defaults.
 
