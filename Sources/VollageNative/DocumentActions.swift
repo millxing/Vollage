@@ -21,7 +21,7 @@ extension CanvasModel {
             let panel = NSSavePanel(); panel.allowedContentTypes = [UTType(exportedAs: "com.vollage.project")]; panel.nameFieldStringValue = title + ".vollage"
             guard panel.runModal() == .OK else { return }; destination = panel.url
         }
-        guard let destination else { return }; busy = true; status = "Saving portable project…"
+        guard let destination else { return }; busy = true; status = "Saving project…"
         let state = snapshot()
         importing = Task {
             defer { busy = false; if closeAfterSave && !dirty { closeAfterSave = false; window?.performClose(nil) } }

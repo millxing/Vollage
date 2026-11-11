@@ -2,16 +2,29 @@ import Foundation
 
 actor ProjectStore {
     static let shared = ProjectStore()
-    func save(_ state: DocumentState, to url: URL) throws {
+    func save(_ state: DocumentState, to url: URL, embeddingMedia: Bool = false) throws {
         var paths: [String] = []
         var assets: [[String: Any]] = []
         func windows(_ values: [VideoState]) throws -> [[String: Any]] {
             try values.map { clip in
-                var index = paths.firstIndex(of: clip.path)
+                // Old portable projects may only have their extracted media left.
+                let path = !embeddingMedia && FileManager.default.fileExists(atPath: clip.sourcePath) ? clip.sourcePath : clip.path
+                var index = paths.firstIndex(of: path)
                 if index == nil {
-                    let attrs = try FileManager.default.attributesOfItem(atPath: clip.path)
-                    index = paths.count; paths.append(clip.path)
-                    assets.append(["name": clip.name, "sourcePath": clip.sourcePath, "size": (attrs[.size] as? NSNumber)?.uint64Value ?? 0])
+                    guard FileManager.default.isReadableFile(atPath: path) else {
+                        throw VollageError.message("Missing video: \(path). Restore it before saving this project.")
+                    }
+                    index = paths.count; paths.append(path)
+                    if embeddingMedia {
+                        let attrs = try FileManager.default.attributesOfItem(atPath: path)
+                        assets.append(["name": clip.name, "sourcePath": clip.sourcePath, "size": (attrs[.size] as? NSNumber)?.uint64Value ?? 0])
+                    } else {
+                        let source = URL(fileURLWithPath: path).standardizedFileURL.pathComponents
+                        let directory = url.deletingLastPathComponent().standardizedFileURL.pathComponents
+                        let common = zip(source, directory).prefix { $0 == $1 }.count
+                        let relative = (Array(repeating: "..", count: directory.count - common) + source.dropFirst(common)).joined(separator: "/")
+                        assets.append(["name": clip.name, "sourcePath": path, "relativePath": relative])
+                    }
                 }
                 return ["uid": clip.id, "asset": index!, "x": clip.x * state.canvasWidth, "y": clip.y * state.canvasHeight,
                         "width": clip.width * state.canvasWidth, "height": clip.height * state.canvasHeight, "speed": clip.speed,
@@ -26,7 +39,7 @@ actor ProjectStore {
             if let data = scene.thumbnail { value["thumbnail"] = "data:image/png;base64," + data.base64EncodedString() }
             return value
         }
-        let manifest: [String: Any] = ["version": 5, "canvas": ["width": Int(state.canvasWidth), "height": Int(state.canvasHeight), "mode": state.fixedCanvas ? "fixed" : "window"], "windows": current, "assets": assets, "scenes": scenes, "globalPaused": state.paused, "activeScene": state.activeScene, "motion": NSNull(), "folder": ["path": state.folderPath, "count": state.count, "seconds": state.seconds, "auto": state.autoShuffle ?? false]]
+        let manifest: [String: Any] = ["version": embeddingMedia ? 5 : 6, "canvas": ["width": Int(state.canvasWidth), "height": Int(state.canvasHeight), "mode": state.fixedCanvas ? "fixed" : "window"], "windows": current, "assets": assets, "scenes": scenes, "globalPaused": state.paused, "activeScene": state.activeScene, "motion": NSNull(), "folder": ["path": state.folderPath, "count": state.count, "seconds": state.seconds, "auto": state.autoShuffle ?? false]]
         let json = try JSONSerialization.data(withJSONObject: manifest)
         guard json.count <= 64 * 1024 * 1024 else { throw VollageError.message("Project metadata is too large.") }
         let temporary = url.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).vollage")
@@ -38,7 +51,7 @@ actor ProjectStore {
         try output.write(contentsOf: Data("VOLLAGE1".utf8))
         try withUnsafeBytes(of: &length) { try output.write(contentsOf: Data($0)) }
         try output.write(contentsOf: json)
-        for (index, path) in paths.enumerated() {
+        for (index, path) in paths.enumerated() where embeddingMedia {
             let input = try FileHandle(forReadingFrom: URL(fileURLWithPath: path)); defer { try? input.close() }
             var total: UInt64 = 0
             while let chunk = try input.read(upToCount: 1024 * 1024), !chunk.isEmpty { try output.write(contentsOf: chunk); total += UInt64(chunk.count) }
@@ -56,46 +69,66 @@ actor ProjectStore {
         let length = header.dropFirst(8).enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << ($1.offset * 8) }
         guard length <= 64 * 1024 * 1024, let json = try input.read(upToCount: Int(length)), json.count == length,
               let data = try JSONSerialization.jsonObject(with: json) as? [String: Any],
-              let version = data["version"] as? Int, [1, 4, 5].contains(version),
+              let version = data["version"] as? Int, [1, 4, 5, 6].contains(version),
               let assets = data["assets"] as? [[String: Any]], assets.count <= 10000 else { throw VollageError.message("Unsupported or damaged Vollage project.") }
         let size = try input.seekToEnd(); try input.seek(toOffset: UInt64(12 + length))
-        var total = UInt64(12 + length)
-        for asset in assets {
-            guard let n = asset["size"] as? NSNumber, n.doubleValue >= 0, n.doubleValue.rounded() == n.doubleValue,
-                  let name = asset["name"] as? String, MediaLibrary.extensions.contains(URL(fileURLWithPath: name).pathExtension.lowercased()), n.uint64Value <= size - min(size, total) else { throw VollageError.message("Invalid embedded media.") }
-            total += n.uint64Value
-        }
-        guard total == size else { throw VollageError.message("Project media length does not match its header.") }
-        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
-        let root = MediaLibrary.root.appendingPathComponent("embedded/" + MediaLibrary.digest("\(url.path):\(size):\(attrs[.modificationDate] ?? "")"))
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         var media: [VideoState] = []
-        for (index, asset) in assets.enumerated() {
-            let name = URL(fileURLWithPath: asset["name"] as! String).lastPathComponent
-            let output = root.appendingPathComponent("\(index)-\(name)")
-            let count = (asset["size"] as! NSNumber).uint64Value
-            let offset = try input.offset() // grid: ok binary file offset, not UI layout
-            let existing = (try? FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.uint64Value
-            if existing != count {
-                let temporary = root.appendingPathComponent(UUID().uuidString)
-                FileManager.default.createFile(atPath: temporary.path, contents: nil)
-                let target = try FileHandle(forWritingTo: temporary)
-                do {
-                    var remaining = count
-                    while remaining > 0 {
-                        guard let chunk = try input.read(upToCount: Int(min(remaining, 1024 * 1024))), !chunk.isEmpty else { throw VollageError.message("Embedded media is truncated.") }
-                        try target.write(contentsOf: chunk); remaining -= UInt64(chunk.count)
-                    }
-                    try target.close()
-                    if FileManager.default.fileExists(atPath: output.path) { try FileManager.default.removeItem(at: output) }
-                    try FileManager.default.moveItem(at: temporary, to: output)
-                } catch { try? target.close(); try? FileManager.default.removeItem(at: temporary); throw error }
+        if version == 6 {
+            guard size == UInt64(12 + length) else { throw VollageError.message("Unexpected media in linked project.") }
+            for asset in assets {
+                guard let path = asset["sourcePath"] as? String, path.hasPrefix("/"),
+                      let name = asset["name"] as? String else { throw VollageError.message("Invalid video reference.") }
+                let absolute = URL(fileURLWithPath: path)
+                var candidates: [URL] = []
+                if let relative = asset["relativePath"] as? String, !relative.hasPrefix("/"), !relative.isEmpty {
+                    candidates.append(url.deletingLastPathComponent().appendingPathComponent(relative).standardizedFileURL)
+                }
+                candidates.append(absolute)
+                guard let source = candidates.first(where: { FileManager.default.isReadableFile(atPath: $0.path) }) else {
+                    throw VollageError.message("Missing video: \(path). Restore the file or reconnect its drive, then reopen the project.")
+                }
+                var ready = try await MediaLibrary.shared.prepare(source)
+                ready.name = name
+                media.append(ready)
             }
-            try input.seek(toOffset: offset + count)
-            var ready = try await MediaLibrary.shared.prepare(output)
-            ready.name = name
-            if let source = asset["sourcePath"] as? String, FileManager.default.fileExists(atPath: source) { ready.sourcePath = source }
-            media.append(ready)
+        } else {
+            var total = UInt64(12 + length)
+            for asset in assets {
+                guard let n = asset["size"] as? NSNumber, n.doubleValue >= 0, n.doubleValue.rounded() == n.doubleValue,
+                      let name = asset["name"] as? String, MediaLibrary.extensions.contains(URL(fileURLWithPath: name).pathExtension.lowercased()), n.uint64Value <= size - min(size, total) else { throw VollageError.message("Invalid embedded media.") }
+                total += n.uint64Value
+            }
+            guard total == size else { throw VollageError.message("Project media length does not match its header.") }
+            let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+            let root = MediaLibrary.root.appendingPathComponent("embedded/" + MediaLibrary.digest("\(url.path):\(size):\(attrs[.modificationDate] ?? "")"))
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            for (index, asset) in assets.enumerated() {
+                let name = URL(fileURLWithPath: asset["name"] as! String).lastPathComponent
+                let output = root.appendingPathComponent("\(index)-\(name)")
+                let count = (asset["size"] as! NSNumber).uint64Value
+                let offset = try input.offset() // grid: ok binary file offset, not UI layout
+                let existing = (try? FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.uint64Value
+                if existing != count {
+                    let temporary = root.appendingPathComponent(UUID().uuidString)
+                    FileManager.default.createFile(atPath: temporary.path, contents: nil)
+                    let target = try FileHandle(forWritingTo: temporary)
+                    do {
+                        var remaining = count
+                        while remaining > 0 {
+                            guard let chunk = try input.read(upToCount: Int(min(remaining, 1024 * 1024))), !chunk.isEmpty else { throw VollageError.message("Embedded media is truncated.") }
+                            try target.write(contentsOf: chunk); remaining -= UInt64(chunk.count)
+                        }
+                        try target.close()
+                        if FileManager.default.fileExists(atPath: output.path) { try FileManager.default.removeItem(at: output) }
+                        try FileManager.default.moveItem(at: temporary, to: output)
+                    } catch { try? target.close(); try? FileManager.default.removeItem(at: temporary); throw error }
+                }
+                try input.seek(toOffset: offset + count)
+                var ready = try await MediaLibrary.shared.prepare(output)
+                ready.name = name
+                if let source = asset["sourcePath"] as? String, FileManager.default.fileExists(atPath: source) { ready.sourcePath = source }
+                media.append(ready)
+            }
         }
         let canvas = data["canvas"] as? [String: Any] ?? [:]
         let w = (canvas["width"] as? Double) ?? 1920, h = (canvas["height"] as? Double) ?? 1080

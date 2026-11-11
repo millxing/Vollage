@@ -1,6 +1,6 @@
 # Vollage
 
-A SwiftUI/AppKit/AVFoundation version of Vollage for macOS 26+, with native editing, portable projects, scenes, folder tools, and output. Motion recording/playback is deliberately excluded. Imported motion is ignored and a notice explains that saving omits it.
+A SwiftUI/AppKit/AVFoundation version of Vollage for macOS 26+, with native editing, linked projects, scenes, folder tools, and output. Motion recording/playback is deliberately excluded. Imported motion is ignored and a notice explains that saving omits it.
 
 ## Build
 
@@ -36,7 +36,9 @@ Unrated or 1–10 ratings are written atomically to `vollage-ratings.json` in th
 
 Command-N creates an independent document window. Command-O opens projects in new windows. Command-S saves to the current project; Command-Shift-S saves under another name.
 
-Portable `.vollage` projects embed original media used by the current composition and all nine scenes, storing each source path once. Browser versions 1/4 and desktop version 5 are supported; native saves use version 5 and reopen in the Electron app. The earlier `.vollage-native` version-1 files can also be imported, provided their original media still exists.
+Normal `.vollage` saves contain settings, scene previews, and references to the original videos; they do not copy video data into the project. References are shared across the current composition and all nine scenes. Keep the original videos available. Relative paths let a project and its media folder move together; absolute paths also allow a project to move separately on the same Mac. Missing media produces an error without replacing the current composition. Converted playback files are regenerated from originals when needed.
+
+Existing embedded projects (browser versions 1/4 and desktop version 5) still open. Saving them writes the smaller linked format (version 6), referencing originals where available or extracted media in the app cache otherwise. Keep the old embedded project as a backup if its originals are gone. Existing files shrink when saved again; other saved copies are unchanged. Linked saves require the native app and cannot open in the retired Electron app. Earlier `.vollage-native` version-1 files can also be imported, provided their original media still exists.
 
 Scenes capture videos, geometry, layer order, playback positions/settings, locks, blending and global pause. Use the Scenes tab to capture/update, name and recall a slot. Previews are saved in the project. Scene recall deliberately replaces the complete composition, including kept and locked videos.
 
@@ -83,7 +85,7 @@ tools/tooltip-test.sh
 tools/grid-lint.sh
 ```
 
-The self-test uses generated color, portrait, rotated and legacy-codec video, plus two audio tones, in `/tmp`. It verifies actual playback, pause, looping, undo/redo, selection edits, locked/free-region grids, pinned shuffle/count changes, automatic shuffle, scenes, ratings, conversion caching, portable media without originals, recovery storage, per-pixel blending, and recorded video/audio tracks. It opens native output with a frozen legacy storage module in `Tests/Compatibility`, saves it there, and reopens that output and legacy browser-format fixtures natively. It also checks that both source tones reach the recording and captures all inspector tabs in light/dark appearances.
+The self-test uses generated color, portrait, rotated and legacy-codec video, plus two audio tones, in `/tmp`. It verifies actual playback, pause, looping, undo/redo, selection edits, locked/free-region grids, pinned shuffle/count changes, automatic shuffle, scenes, ratings, conversion caching, small linked saves, linked media relocation and missing-file handling, portable media without originals, recovery storage, per-pixel blending, and recorded video/audio tracks. It opens a separate embedded-format test export with a frozen legacy storage module in `Tests/Compatibility`, saves it there, and reopens that output and legacy browser-format fixtures natively. It also checks that both source tones reach the recording and captures all inspector tabs in light/dark appearances.
 
 `VOLLAGE_DATA_ROOT` isolates test state. `VOLLAGE_TEST_MEDIA` selects test fixtures; `VOLLAGE_UI_ONLY=1` seeds an interactive test window without running the assertions. No personal videos or projects are used during verification.
 

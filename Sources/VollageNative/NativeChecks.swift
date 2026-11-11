@@ -170,12 +170,70 @@ enum NativeChecks {
             check(converted.playbackPath != converted.path && converted.path.hasSuffix(".wmv"), "unsupported codec converts without replacing original")
             let convertedAgain = try await MediaLibrary.shared.prepare(root.appendingPathComponent("legacy.wmv"))
             check(convertedAgain.playbackPath == converted.playbackPath, "conversion cache reused")
+            let linked = root.appendingPathComponent("linked.vollage")
+            var linkedState = model.snapshot()
+            linkedState.videos = [try await MediaLibrary.shared.prepare(root.appendingPathComponent("red.mp4"))]
+            linkedState.videos[0].time = 0.75; linkedState.videos[0].volume = 0.4
+            linkedState.scenes[1] = SceneState(name: "Scene-only media", videos: [converted], paused: true)
+            try await ProjectStore.shared.save(linkedState, to: linked)
+            let linkedBytes = try Data(contentsOf: linked)
+            let linkedLength = linkedBytes.dropFirst(8).prefix(4).enumerated().reduce(0) { $0 | Int($1.element) << ($1.offset * 8) }
+            let linkedManifest = try JSONSerialization.jsonObject(with: linkedBytes.dropFirst(12)) as! [String: Any]
+            let linkedAssets = linkedManifest["assets"] as! [[String: Any]]
+            check(linkedBytes.count == linkedLength + 12 && linkedManifest["version"] as? Int == 6 && linkedAssets.allSatisfy { $0["size"] == nil }, "normal save contains metadata only, with no embedded media")
+            check(Set(linkedAssets.compactMap { $0["sourcePath"] as? String }).count == linkedAssets.count, "linked media deduplicated across scenes")
+            let reopened = try await ProjectStore.shared.load(linked).0
+            check(reopened.videos == linkedState.videos && reopened.scenes == linkedState.scenes, "linked project restores video settings and all scenes")
+            check(reopened.scenes[1]?.videos[0].path == converted.path && reopened.scenes[1]?.videos[0].playbackPath == converted.playbackPath, "linked scene-only media uses original and conversion cache")
+            let relocated = root.appendingPathComponent("relocated")
+            try FileManager.default.createDirectory(at: relocated, withIntermediateDirectories: true)
+            let relocatedProject = relocated.appendingPathComponent("linked.vollage")
+            try FileManager.default.copyItem(at: linked, to: relocatedProject)
+            check(try await ProjectStore.shared.load(relocatedProject).0.videos[0].path == linkedState.videos[0].path, "project moved alone resolves absolute source path")
+            // Move every referenced video alongside the project, leaving old absolute paths unavailable.
+            var relocatedSources: [(URL, URL)] = []
+            do {
+                for asset in linkedAssets {
+                    let source = URL(fileURLWithPath: asset["sourcePath"] as! String)
+                    let target = relocated.appendingPathComponent(source.lastPathComponent)
+                    try FileManager.default.moveItem(at: source, to: target)
+                    relocatedSources.append((source, target))
+                }
+                let movedState = try await ProjectStore.shared.load(relocatedProject).0
+                check(movedState.videos[0].path == relocated.appendingPathComponent("red.mp4").path && movedState.scenes[1]?.videos[0].path == relocated.appendingPathComponent("legacy.wmv").path, "project and media moved together resolve relative paths")
+                let beforeMissing = model.document
+                let beforeClips = model.clips.map(ObjectIdentifier.init)
+                let beforeURL = model.projectURL
+                await model.load(linked)
+                check(model.error?.contains("Missing video:") == true && model.document == beforeMissing && model.clips.map(ObjectIdentifier.init) == beforeClips && model.projectURL == beforeURL, "missing linked media explains failure and preserves current document")
+                model.error = nil
+                for (source, target) in relocatedSources { try FileManager.default.moveItem(at: target, to: source) }
+                relocatedSources = []
+            } catch {
+                for (source, target) in relocatedSources { try? FileManager.default.moveItem(at: target, to: source) }
+                throw error
+            }
+            try FileManager.default.removeItem(at: relocatedProject)
+            // Re-saving an existing large project replaces it with linked metadata.
+            try await ProjectStore.shared.save(linkedState, to: linked, embeddingMedia: true)
+            let embeddedSize = try Data(contentsOf: linked).count
+            let embeddedState = try await ProjectStore.shared.load(linked).0
+            try await ProjectStore.shared.save(embeddedState, to: linked)
+            let resaved = try await ProjectStore.shared.load(linked).0
+            check(try Data(contentsOf: linked).count < embeddedSize && resaved.videos.map(\.path) == linkedState.videos.map(\.path), "re-saving embedded project shrinks it and references originals")
             let project = root.appendingPathComponent("native-export.vollage")
-            try await ProjectStore.shared.save(model.snapshot(), to: project)
+            try await ProjectStore.shared.save(model.snapshot(), to: project, embeddingMedia: true)
             let original = root.appendingPathComponent("red.mp4"), moved = root.appendingPathComponent("red-hidden.mp4")
             try FileManager.default.moveItem(at: original, to: moved)
             let loaded: DocumentState
-            do { loaded = try await ProjectStore.shared.load(project).0; try FileManager.default.moveItem(at: moved, to: original) }
+            do {
+                loaded = try await ProjectStore.shared.load(project).0
+                let cacheLinked = root.appendingPathComponent("cache-linked.vollage")
+                try await ProjectStore.shared.save(loaded, to: cacheLinked)
+                let cacheLoaded = try await ProjectStore.shared.load(cacheLinked).0
+                check(cacheLoaded.videos.count == loaded.videos.count && cacheLoaded.scenes[0]?.name == "First Scene", "old embedded project can save and reopen links when originals are unavailable")
+                try FileManager.default.moveItem(at: moved, to: original)
+            }
             catch { try? FileManager.default.moveItem(at: moved, to: original); throw error }
             check(loaded.videos.count == 2, "portable project opens with original source absent")
             check(loaded.videos.count == 2 && loaded.scenes[0]?.name == "First Scene", "portable project restores scenes and media")

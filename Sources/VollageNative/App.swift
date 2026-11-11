@@ -86,6 +86,6 @@ struct CanvasCommands: Commands {
                 Button("Capture Scene \(index+1)") { model?.captureScene(index) }
             }
         }
-        CommandGroup(replacing: .help) { Button("Vollage Help") { let alert = NSAlert(); alert.messageText = "Vollage"; alert.informativeText = "Shift-click selects multiple videos. Drag to move; drag a corner to resize.\n\nSpace: play/pause all · P/Escape: clean view · G: grid · Shift-G: shuffle · K: keep · Shift-K: lock position · H: PNG · V: MP4 output\n\n1–9: recall scene · Shift-1–9: capture scene\n\nPortable .vollage projects include original media and scenes. Motion is not supported."; alert.runModal() } }
+        CommandGroup(replacing: .help) { Button("Vollage Help") { let alert = NSAlert(); alert.messageText = "Vollage"; alert.informativeText = "Shift-click selects multiple videos. Drag to move; drag a corner to resize.\n\nSpace: play/pause all · P/Escape: clean view · G: grid · Shift-G: shuffle · K: keep · Shift-K: lock position · H: PNG · V: MP4 output\n\n1–9: recall scene · Shift-1–9: capture scene\n\nSaved .vollage projects reference original video files and include scenes. Keep the original videos available. Motion is not supported."; alert.runModal() } }
     }
 }
