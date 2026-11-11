@@ -8,10 +8,12 @@ import SwiftUI
         WindowGroup("Vollage", for: UUID.self) { $request in
             NativeCanvas(request: request)
         }.defaultSize(width: 1320, height: 840).windowToolbarStyle(.unified).commands { CanvasCommands() }
+        Settings { AppearanceSettings() }
+            .windowResizability(.contentSize)
     }
 }
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) { NSApp.setActivationPolicy(.regular); NSApp.activate() }
+    func applicationDidFinishLaunching(_ notification: Notification) { AppearanceStore.shared.apply(); NSApp.setActivationPolicy(.regular); NSApp.activate() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard AppHub.models.allSatisfy({ $0.canClose() }) else { return .terminateCancel }

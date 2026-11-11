@@ -10,6 +10,7 @@ enum ToolbarHelp {
     static let output = "Save projects, PNG screenshots, or MP4 recordings"
     static let cleanView = "Hide controls (P); return with Escape"
     static let fullscreen = "Toggle fullscreen (Return)"
+    static let settings = "Open Settings (⌘,)"
     static let sidebar = "Show or hide the right sidebar (⌘⇧\\)"
 
     static func text(for label: String) -> String? {
@@ -21,6 +22,7 @@ enum ToolbarHelp {
         case "Save and Output": output
         case "Clean View": cleanView
         case "Fullscreen": fullscreen
+        case "Settings": settings
         case "Show Right Sidebar", "Hide Right Sidebar": sidebar
         default: nil
         }

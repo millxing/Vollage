@@ -23,9 +23,13 @@ Built with SwiftUI, AppKit, and AVFoundation for **macOS 26 and later**.
 ./build.sh --open
 ```
 
-The signed app is created at `build/Vollage.app`. Use `--debug` for development. Every build also installs to `/Applications/Vollage.app`; `--open` opens that installed copy. This native app is the maintained version of Vollage. The former Electron app has been retired.
+The ad hoc signed app is created at `build/Vollage.app`. Use `--debug` for development. Every build also installs to `/Applications/Vollage.app`; `--open` opens that installed copy. This native app is the maintained version of Vollage. The former Electron app has been retired.
 
 `tools/swift.sh` isolates outdated private PackageDescription interfaces in this Mac's Command Line Tools. It copies the matching public interfaces and library to `/tmp/vollage-native-build/toolchain`, selects the existing macOS 26.5 SDK when available, and uses SwiftPM's native build engine. No SDK is copied and no global developer settings change. SwiftPM emits a deprecation notice for this engine. `VOLLAGE_BUILD_ROOT` and `VOLLAGE_SDK` override the defaults.
+
+## Settings
+
+Open **Vollage > Settings…** (Command-comma) or click the toolbar gear. Choose **System**, **Light**, or **Dark** appearance. System follows your Mac; your choice applies immediately to every Vollage window and is remembered across launches.
 
 ## Editing
 
@@ -106,4 +110,4 @@ The self-test uses generated color, portrait, rotated and legacy-codec video, pl
 
 `VOLLAGE_DATA_ROOT` isolates test state. `VOLLAGE_TEST_MEDIA` selects test fixtures; `VOLLAGE_UI_ONLY=1` seeds an interactive test window without running the assertions. No personal videos or projects are used during verification.
 
-`tools/tooltip-test.sh` checks native toolbar tooltip registration for all eight actions and repeats after playback and sidebar changes. SwiftUI `.help` is supplemented on the AppKit toolbar items and host views because this macOS toolbar integration can drop button help.
+`tools/tooltip-test.sh` checks native toolbar tooltip registration for all nine actions and repeats after playback and sidebar changes. SwiftUI `.help` is supplemented on the AppKit toolbar items and host views because this macOS toolbar integration can drop button help.

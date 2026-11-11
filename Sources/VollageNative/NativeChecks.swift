@@ -16,7 +16,7 @@ enum NativeChecks {
         let root = URL(fileURLWithPath: fixture)
         func checkToolbarHelp() {
             let items = (model.window?.toolbar?.items ?? []).filter { ToolbarHelp.text(for: $0.label) != nil }
-            check(items.count == 8, "all eight toolbar actions are present")
+            check(items.count == 9, "all nine toolbar actions are present")
             for item in items {
                 let expected = ToolbarHelp.text(for: item.label)
                 check(item.toolTip == expected && item.view?.toolTip == expected, "native hover help: \(item.label)")
@@ -61,6 +61,16 @@ enum NativeChecks {
             }
             exit(failures == 0 ? 0 : 1)
         }
+        let appearance = AppearanceStore.shared
+        let previousMode = appearance.mode
+        for mode in AppAppearance.allCases {
+            appearance.mode = mode
+            check(NSApp.appearance?.name == mode.native?.name, "\(mode.title) appearance applies app-wide")
+        }
+        let testDefaults = UserDefaults(suiteName: "com.vollage.native.appearance-tests")!
+        appearance.mode = .dark
+        check(AppearanceStore(defaults: testDefaults).mode == .dark, "appearance preference survives store reload")
+        appearance.mode = previousMode
         await model.importVideos([root.appendingPathComponent("red.mp4"), root.appendingPathComponent("blue.mp4")])
         await wait(1)
         checkToolbarHelp()

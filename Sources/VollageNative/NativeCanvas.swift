@@ -5,6 +5,7 @@ struct NativeCanvas: View {
     @State var model = CanvasModel()
     let request: UUID?
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     var body: some View {
         @Bindable var model = model
         HStack(spacing: 0) {
@@ -60,6 +61,7 @@ struct NativeCanvas: View {
             } label: { Label("Save and Output", systemImage: "square.and.arrow.down") }.accessibilityLabel("Save and Output").help(ToolbarHelp.output)
             Button("Clean View", systemImage: "play.rectangle") { model.performing.toggle() }.help(ToolbarHelp.cleanView)
             Button("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") { model.window?.toggleFullScreen(nil) }.help(ToolbarHelp.fullscreen)
+            Button("Settings", systemImage: "gearshape") { openSettings() }.help(ToolbarHelp.settings)
             Button(model.sidebarVisible ? "Hide Right Sidebar" : "Show Right Sidebar", systemImage: "sidebar.right") {
                 model.toggleSidebar()
             }.help(ToolbarHelp.sidebar)
