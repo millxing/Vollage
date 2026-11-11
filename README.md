@@ -1,6 +1,21 @@
 # Vollage
 
-A SwiftUI/AppKit/AVFoundation version of Vollage for macOS 26+, with native editing, linked projects, scenes, folder tools, and output. Motion recording/playback is deliberately excluded. Imported motion is ignored and a notice explains that saving omits it.
+**Turn your video collection into a living collage.**
+
+Vollage is a native Mac app for creating video collages that play, loop, and change in real time. Bring clips together on a single canvas, arrange them side by side, or overlap them with blend modes. Shuffle through a folder of footage to discover unexpected combinations, keep the moments you like, and let the rest change around them.
+
+![Vollage showing four videos playing together on a single canvas](docs/images/vollage.png)
+
+Build a composition by hand, set up an ever-changing video wall, or experiment with footage as a visual instrument. Vollage gives you direct control over each clip and a quick way to capture what happens.
+
+- **Compose freely.** Drag, resize, layer, and mirror videos, or arrange them in a grid that respects their proportions.
+- **Find new combinations.** Shuffle on demand or at a chosen interval. Keep favorite clips in the mix and lock elements in place.
+- **Shape the playback.** Adjust speed, scrub to a moment, pause individual clips, and mix their audio. Combine layers with Screen, Multiply, Difference, and Overlay blending.
+- **Save a set of scenes.** Capture up to nine compositions and recall them with a keystroke.
+- **Let the visuals fill the screen.** Hide the editing controls with Clean View or go fullscreen.
+- **Keep what you create.** Export a still image, record the canvas with mixed audio to MP4, and save compact projects that reference your original videos.
+
+Built with SwiftUI, AppKit, and AVFoundation for **macOS 26 and later**.
 
 ## Build
 
@@ -51,6 +66,8 @@ Resize Output Frame (in Setup or Save and Output) shows draggable edges and corn
 Save Screenshot writes a PNG at canvas resolution. Record Output streams H.264 video and mixed stereo AAC audio to an MP4. Source audio respects mute, volume, pause and speed. FFmpeg prepares decoded audio in a disk cache; no microphone or screen-recording permission is needed for composition output. A recording badge and Stop control remain available in clean view. Real-time performance depends on media, video count, resolution and hardware; overloaded rendering can drop frames.
 
 Clean View hides editing controls and disables editing. Fullscreen is independent. Playback, shuffle, scene recall, screenshot and recording remain available.
+
+Motion recording and playback are not supported. Imported motion is ignored, and a notice explains that saving omits it.
 
 ## Keyboard
 
