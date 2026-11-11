@@ -29,7 +29,7 @@ nonisolated struct DocumentState: Codable, Equatable, Sendable {
     var canvasWidth = 1920.0, canvasHeight = 1080.0
     var fixedCanvas = true
     var folderPath = ""
-    var count = 5
+    var count = 4
     var seconds = 30.0
     var gridActive = false
     var autoShuffle: Bool?

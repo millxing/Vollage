@@ -167,7 +167,7 @@ actor ProjectStore {
             }
         }
         if let folder = data["folder"] as? [String: Any] {
-            result.autoShuffle = folder["auto"] as? Bool ?? false; result.folderPath = folder["path"] as? String ?? ""; result.count = min(100, max(1, folder["count"] as? Int ?? 5)); result.seconds = min(3600, max(2, folder["seconds"] as? Double ?? 30))
+            result.autoShuffle = folder["auto"] as? Bool ?? false; result.folderPath = folder["path"] as? String ?? ""; result.count = min(100, max(1, folder["count"] as? Int ?? 4)); result.seconds = min(3600, max(2, folder["seconds"] as? Double ?? 30))
         }
         result.activeScene = data["activeScene"] as? Int ?? -1
         let hasMotion = (data["motion"] is [String: Any]) || (data["scenes"] as? [Any] ?? []).compactMap { $0 as? [String: Any] }.contains { $0["motion"] is [String: Any] }
