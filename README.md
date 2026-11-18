@@ -43,7 +43,7 @@ Undo/redo covers composition edits, scenes, folder settings and transforms; a dr
 
 ## FrameShift effects test build
 
-Run `./build.sh --effects-test` to install **Vollage Effects Test** in your home Applications folder. It uses separate settings and recovery data. Select one video and open **Video → Appearance → Effects**. Add **Displacement Map**, **Slit-Scan**, or **Video Feedback**. Open an effect to adjust its parameters and Mix. Use its action menu to bypass, reorder, or remove it. The stack runs from top to bottom.
+Run `./build.sh --effects-test` to install **Vollage Effects Test** in your home Applications folder. It uses separate settings and recovery data. Select one video and open **Video → Appearance → Effects**. Choose **Add Effect** and pick from 12 effects in four groups. Temporal: Slit-Scan, Time Displacement, Motion Echo, Time Stacking, Rolling Shutter. Feedback: Video Feedback, Motion Trails, Temporal Kaleidoscope. Spatial: Displacement Map, Scanline Distortion, Pixel Sort. Motion: Frame Difference, which can also mask the next effect. Open an effect to adjust its settings and Mix. Use the checkbox to bypass it and the arrows to reorder it. The stack runs from top to bottom.
 
 Effects appear in the live canvas, screenshots, scene previews, and MP4 recordings. Shuffle keeps the settings in each slot. Seeking, replacing footage, or recalling a scene starts a fresh effect history. Projects with effects require a build that supports them. Use Save Project As when you want a separate test copy of an existing project.
 

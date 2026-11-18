@@ -20,13 +20,14 @@ enum EffectChecks {
         model.document.count = 4
         model.folder = try await MediaLibrary.shared.files(in: media)
 
-        let kinds = EffectKind.allCases
+        let kinds: [EffectKind] = [.displacementMap, .slitScan, .videoFeedback]
         for (clip, kind) in zip(clips, kinds) {
             var effect = EffectInstance(kind: kind)
             switch kind {
             case .displacementMap: effect.set("source", 1); effect.set("amount", 0.12)
             case .slitScan: effect.set("span", 48)
             case .videoFeedback: effect.set("blend", 1); effect.set("amount", 0.72)
+            default: break
             }
             model.select(clip)
             model.edit { $0.state.effectStack = [effect] }

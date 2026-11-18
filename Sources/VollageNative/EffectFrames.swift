@@ -86,11 +86,7 @@ final class EffectFramePipeline {
             let width = max(2, size.width * scale), height = max(2, size.height * scale)
             // Four working textures, an output pair, and any effect-specific history or feedback.
             let bytesPerPixel = stack.reduce(40) { bytes, effect in
-                switch effect.kind {
-                case .slitScan: bytes + 64 * 4
-                case .videoFeedback: bytes + 2 * 8
-                case .displacementMap: bytes
-                }
+                bytes + effect.kind.historyDepth * 4 + (effect.kind.usesAccumulator ? 2 * 8 : 0)
             }
             inputs.append((clip, source, stack, width, height, width * height * Double(bytesPerPixel)))
         }

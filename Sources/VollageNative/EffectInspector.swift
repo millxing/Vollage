@@ -33,11 +33,16 @@ struct EffectInspector: View {
 
     private func addMenu(isFull: Bool) -> some View {
         Menu {
-            ForEach(EffectKind.allCases) { kind in
-                Button(kind.title) {
-                    let effect = EffectInstance(kind: kind)
-                    edit { $0.append(effect) }
-                    openEffect = effect.id
+            ForEach(EffectCategory.allCases, id: \.self) { category in
+                Section(category.title) {
+                    ForEach(EffectKind.kinds(in: category)) { kind in
+                        Button(kind.title) {
+                            let effect = EffectInstance(kind: kind)
+                            edit { $0.append(effect) }
+                            openEffect = effect.id
+                        }
+                        .help(kind.summary)
+                    }
                 }
             }
         } label: {

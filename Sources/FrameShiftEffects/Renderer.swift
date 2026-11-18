@@ -9,6 +9,8 @@ public final class EffectEngine {
     fileprivate let pipelines: [String: MTLComputePipelineState]
     fileprivate let emptyHistory: MTLTexture
     fileprivate let emptyFrame: MTLTexture
+    /// A 1 × 1 white mask, used when no earlier effect supplied one.
+    fileprivate let whiteMask: MTLTexture
     private let textureCache: CVMetalTextureCache
 
     public init() throws {
@@ -28,6 +30,13 @@ public final class EffectEngine {
         textureCache = cache
         emptyHistory = try Self.texture(device, width: 1, height: 1, format: .rgba8Unorm, depth: 1)
         emptyFrame = try Self.texture(device, width: 1, height: 1, format: .rgba16Float)
+        let maskDescriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba16Float, width: 1, height: 1, mipmapped: false)
+        maskDescriptor.storageMode = .shared
+        maskDescriptor.usage = .shaderRead
+        guard let mask = device.makeTexture(descriptor: maskDescriptor) else { throw RenderError.allocation }
+        let white = [Float16](repeating: 1, count: 4)
+        white.withUnsafeBytes { mask.replace(region: MTLRegionMake2D(0, 0, 1, 1), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: 8) }
+        whiteMask = mask
     }
 
     fileprivate static func texture(
@@ -94,10 +103,10 @@ public final class EffectRenderer {
         var hasPrevious = false
 
         init(engine: EffectEngine, width: Int, height: Int, kind: EffectKind) throws {
-            history = kind == .slitScan
-                ? try EffectEngine.texture(engine.device, width: width, height: height, format: .rgba8Unorm, depth: 64)
+            history = kind.historyDepth > 0
+                ? try EffectEngine.texture(engine.device, width: width, height: height, format: .rgba8Unorm, depth: kind.historyDepth)
                 : nil
-            feedback = kind == .videoFeedback
+            feedback = kind.usesAccumulator
                 ? try (0..<2).map { _ in
                     try EffectEngine.texture(engine.device, width: width, height: height, format: .rgba16Float)
                 }
@@ -148,6 +157,7 @@ public final class EffectRenderer {
         }
 
         var current = input
+        var pendingMask: MTLTexture?
         for effect in effects {
             let state = states[effect.id]!
             var info = KernelInfo(width: UInt32(input.width), height: UInt32(input.height), time: Float(time))
@@ -187,27 +197,49 @@ public final class EffectRenderer {
             }
 
             let processed = scratch.first { $0 !== current }!
-            let values = effect.kernelValues
-            encoder.setTexture(current, index: 0)
-            encoder.setTexture(processed, index: 1)
-            encoder.setTexture(state.history ?? engine.emptyHistory, index: 2)
-            encoder.setTexture(previous, index: 3)
-            encoder.setTexture(accumulator, index: 4)
-            values.withUnsafeBufferPointer { encoder.setBytes($0.baseAddress!, length: $0.count * MemoryLayout<Float>.stride, index: 0) }
-            encoder.setBytes(&info, length: MemoryLayout<KernelInfo>.stride, index: 1)
-            dispatch("k_" + effect.kind.rawValue)
+            var values = effect.kernelValues
+            if effect.kind == .pixelSort {
+                // One thread per row or column.
+                encoder.setComputePipelineState(engine.pipelines["k_pixelSort"]!)
+                encoder.setTexture(current, index: 0)
+                encoder.setTexture(processed, index: 1)
+                values.withUnsafeBufferPointer { encoder.setBytes($0.baseAddress!, length: $0.count * MemoryLayout<Float>.stride, index: 0) }
+                encoder.setBytes(&info, length: MemoryLayout<KernelInfo>.stride, index: 1)
+                let lines = effect.value("direction") > 0.5 ? input.width : input.height
+                encoder.dispatchThreads(MTLSize(width: lines, height: 1, depth: 1),
+                                        threadsPerThreadgroup: MTLSize(width: 32, height: 1, depth: 1))
+            } else {
+                encoder.setTexture(current, index: 0)
+                encoder.setTexture(processed, index: 1)
+                encoder.setTexture(state.history ?? engine.emptyHistory, index: 2)
+                encoder.setTexture(previous, index: 3)
+                encoder.setTexture(accumulator, index: 4)
+                values.withUnsafeBufferPointer { encoder.setBytes($0.baseAddress!, length: $0.count * MemoryLayout<Float>.stride, index: 0) }
+                encoder.setBytes(&info, length: MemoryLayout<KernelInfo>.stride, index: 1)
+                dispatch("k_" + effect.kind.rawValue)
+            }
+
+            // Frame Difference set to Mask Next Effect hands its mask on and passes the input through.
+            if effect.kind == .frameDifference, Int(effect.value("output")) == 2 {
+                pendingMask = accumulator
+                continue
+            }
+            let mask = pendingMask
+            pendingMask = nil
 
             var mix = Float(effect.value(ParamSpec.mix.key))
-            if mix < 1 {
+            if mix >= 0.999, mask == nil {
+                current = processed
+            } else {
                 let result = scratch.first { $0 !== current && $0 !== processed }!
+                encoder.setComputePipelineState(engine.pipelines["k_mix"]!)
                 encoder.setTexture(current, index: 0)
                 encoder.setTexture(result, index: 1)
                 encoder.setTexture(processed, index: 2)
+                encoder.setTexture(mask ?? engine.whiteMask, index: 3)
                 encoder.setBytes(&mix, length: MemoryLayout<Float>.size, index: 0)
-                dispatch("k_mix")
+                encoder.dispatchThreads(size, threadsPerThreadgroup: group)
                 current = result
-            } else {
-                current = processed
             }
         }
 
