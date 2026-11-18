@@ -4,6 +4,23 @@ import AVFoundation
 
 final class Compositor {
     let context = CIContext(options: [.cacheIntermediates: false])
+    private lazy var effectPipeline = Result { try EffectFramePipeline() }
+    private var retryEffectsAfter = 0.0
+
+    func updateEffects(clips: [Clip], outputSize: CGSize) throws {
+        guard clips.contains(where: {
+            $0.effectFrames != nil || $0.state.effectStack.contains(where: \.isEnabled)
+        }) else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now >= retryEffectsAfter else { return }
+        do {
+            try effectPipeline.get().update(clips, outputSize: outputSize)
+        } catch {
+            retryEffectsAfter = now + 2
+            throw error
+        }
+    }
+
     func image(clips: [Clip], size: CGSize) -> CIImage {
         let bounds = CGRect(origin: .zero, size: size)
         var canvas = CIImage(color: .black).cropped(to: bounds)
@@ -12,7 +29,9 @@ final class Compositor {
             let rect = CGRect(x: state.x * size.width, y: (1 - state.y - state.height) * size.height, width: state.width * size.width, height: state.height * size.height)
             guard rect.width > 0, rect.height > 0 else { continue }
             var layer = CIImage(color: .black).cropped(to: rect)
-            if var source = clip.frame() {
+            let hasEffects = state.effectStack.contains(where: \.isEnabled)
+            let frame = hasEffects ? (clip.effectFrames?.image ?? clip.lastImage) : clip.frame()
+            if var source = frame {
                 source = source.transformed(by: CGAffineTransform(translationX: -source.extent.minX, y: -source.extent.minY))
                 if state.mirrored { source = source.transformed(by: CGAffineTransform(scaleX: -1, y: 1)).transformed(by: CGAffineTransform(translationX: source.extent.width, y: 0)) }
                 let scale = min(rect.width / source.extent.width, rect.height / source.extent.height)

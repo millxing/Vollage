@@ -41,6 +41,14 @@ The Video inspector provides individual play/pause, scrubbing, speed 0–1600%, 
 
 Undo/redo covers composition edits, scenes, folder settings and transforms; a drag or slider gesture is one history step. The last 50 snapshots are retained. Source ratings live outside the document and are not part of composition undo.
 
+## FrameShift effects test build
+
+Run `./build.sh --effects-test` to install **Vollage Effects Test** in your home Applications folder. It uses separate settings and recovery data. Select one video and open **Video → Appearance → Effects**. Add **Displacement Map**, **Slit-Scan**, or **Video Feedback**. Open an effect to adjust its parameters and Mix. Use its action menu to bypass, reorder, or remove it. The stack runs from top to bottom.
+
+Effects appear in the live canvas, screenshots, scene previews, and MP4 recordings. Shuffle keeps the settings in each slot. Seeking, replacing footage, or recalling a scene starts a fresh effect history. Projects with effects require a build that supports them. Use Save Project As when you want a separate test copy of an existing project.
+
+Run `tools/effects-test.sh` after building to check the effects with generated clips and a 20-second Full HD recording. Use `VOLLAGE_TEST_APP` to select an installed copy for the checks.
+
 ## Folders, layout and ratings
 
 Setup contains the recursive source folder, requested count (1–100), automatic shuffle and interval (2–3600 seconds), canvas size, and grid arrangement. Changing the count shuffles immediately. Fewer available files produces fewer videos; sources are not duplicated to fill slots.

@@ -1,4 +1,5 @@
 import Foundation
+import FrameShiftEffects
 
 nonisolated struct VideoState: Codable, Equatable, Sendable, Identifiable {
     var id = UUID().uuidString
@@ -14,6 +15,13 @@ nonisolated struct VideoState: Codable, Equatable, Sendable, Identifiable {
     var blend = "normal"
     var time = 0.0
     var orientation: [Double]?
+    // Optional storage gives older projects and recovery snapshots an empty stack.
+    var effects: [EffectInstance]?
+    static let maximumEffects = 16
+    var effectStack: [EffectInstance] {
+        get { effects ?? [] }
+        set { effects = newValue.isEmpty ? nil : newValue }
+    }
 }
 nonisolated struct SceneState: Codable, Equatable, Sendable {
     var name: String

@@ -73,7 +73,7 @@ import AVFoundation
         clips = state.videos.map { value in
             if let existing = old[value.id], existing.state.playbackPath == value.playbackPath {
                 existing.globalPaused = state.paused; existing.state = value
-                existing.player.seek(to: CMTime(seconds: value.time, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+                existing.seek(to: value.time)
                 return existing
             }
             return Clip(value, globalPaused: state.paused)
@@ -134,7 +134,7 @@ import AVFoundation
     }
     func seek(_ seconds: Double) {
         guard let clip = selected, canEdit else { return }
-        checkpoint(); clip.player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero); changed()
+        checkpoint(); clip.seek(to: max(0, seconds)); changed()
     }
     func cancelImport() { importing?.cancel(); status = "Cancelling import…" }
     func add(_ urls: [URL]) { guard canEdit else { return }; importing = Task { await importVideos(urls) } }
@@ -181,7 +181,7 @@ import AVFoundation
             if Task.isCancelled { return }; status = "Preparing shuffle \(ready.count + 1) of \(needed)…"
             do {
                 var value = try await MediaLibrary.shared.prepare(url)
-                if ready.count < slots.count { let old = slots[ready.count].snapshot(); value.x = old.x; value.y = old.y; value.width = old.width; value.height = old.height; value.speed = old.speed; value.volume = old.volume; value.muted = old.muted; value.paused = old.paused; value.mirrored = old.mirrored; value.blend = old.blend }
+                if ready.count < slots.count { let old = slots[ready.count].snapshot(); value.x = old.x; value.y = old.y; value.width = old.width; value.height = old.height; value.speed = old.speed; value.volume = old.volume; value.muted = old.muted; value.paused = old.paused; value.mirrored = old.mirrored; value.blend = old.blend; value.effectStack = old.effectStack }
                 if let recording { try await recording.cacheAudio([value]) }
                 ready.append(value)
             } catch { status = "Skipped \(url.lastPathComponent)" }

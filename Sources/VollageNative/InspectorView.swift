@@ -78,6 +78,9 @@ struct InspectorView: View {
                 Picker("Blend", selection: Binding(get: { clip.state.blend }, set: { value in model.edit { $0.state.blend = value } })) {
                     ForEach(["normal", "screen", "multiply", "difference", "overlay"], id: \.self) { Text($0.capitalized).tag($0) }
                 }
+                if model.selection.count == 1 {
+                    EffectInspector(model: model, clip: clip).id(clip.id)
+                }
             }
             Divider()
             section("Placement") {

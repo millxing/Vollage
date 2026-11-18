@@ -1,10 +1,17 @@
 import Foundation
+import FrameShiftEffects
 
 actor ProjectStore {
     static let shared = ProjectStore()
     func save(_ state: DocumentState, to url: URL, embeddingMedia: Bool = false) throws {
         var paths: [String] = []
         var assets: [[String: Any]] = []
+        let hasEffects = state.videos.contains { !$0.effectStack.isEmpty }
+            || state.scenes.compactMap { $0 }.contains { $0.videos.contains { !$0.effectStack.isEmpty } }
+        guard !embeddingMedia || !hasEffects else {
+            throw VollageError.message("The legacy project format does not support video effects.")
+        }
+        let effectEncoder = JSONEncoder()
         func windows(_ values: [VideoState]) throws -> [[String: Any]] {
             try values.map { clip in
                 // Old portable projects may only have their extracted media left.
@@ -26,10 +33,14 @@ actor ProjectStore {
                         assets.append(["name": clip.name, "sourcePath": path, "relativePath": relative])
                     }
                 }
-                return ["uid": clip.id, "asset": index!, "x": clip.x * state.canvasWidth, "y": clip.y * state.canvasHeight,
+                var window: [String: Any] = ["uid": clip.id, "asset": index!, "x": clip.x * state.canvasWidth, "y": clip.y * state.canvasHeight,
                         "width": clip.width * state.canvasWidth, "height": clip.height * state.canvasHeight, "speed": clip.speed,
                         "volume": clip.volume, "time": clip.time, "muted": clip.muted, "paused": clip.paused, "mirrored": clip.mirrored,
                         "locked": clip.locked, "pinned": clip.pinned, "blend": clip.blend]
+                if !clip.effectStack.isEmpty {
+                    window["effects"] = try JSONSerialization.jsonObject(with: effectEncoder.encode(clip.effectStack))
+                }
+                return window
             }
         }
         let current = try windows(state.videos)
@@ -39,7 +50,7 @@ actor ProjectStore {
             if let data = scene.thumbnail { value["thumbnail"] = "data:image/png;base64," + data.base64EncodedString() }
             return value
         }
-        let manifest: [String: Any] = ["version": embeddingMedia ? 5 : 6, "canvas": ["width": Int(state.canvasWidth), "height": Int(state.canvasHeight), "mode": state.fixedCanvas ? "fixed" : "window"], "windows": current, "assets": assets, "scenes": scenes, "globalPaused": state.paused, "activeScene": state.activeScene, "motion": NSNull(), "folder": ["path": state.folderPath, "count": state.count, "seconds": state.seconds, "auto": state.autoShuffle ?? false]]
+        let manifest: [String: Any] = ["version": embeddingMedia ? 5 : (hasEffects ? 7 : 6), "canvas": ["width": Int(state.canvasWidth), "height": Int(state.canvasHeight), "mode": state.fixedCanvas ? "fixed" : "window"], "windows": current, "assets": assets, "scenes": scenes, "globalPaused": state.paused, "activeScene": state.activeScene, "motion": NSNull(), "folder": ["path": state.folderPath, "count": state.count, "seconds": state.seconds, "auto": state.autoShuffle ?? false]]
         let json = try JSONSerialization.data(withJSONObject: manifest)
         guard json.count <= 64 * 1024 * 1024 else { throw VollageError.message("Project metadata is too large.") }
         let temporary = url.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).vollage")
@@ -69,11 +80,11 @@ actor ProjectStore {
         let length = header.dropFirst(8).enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << ($1.offset * 8) }
         guard length <= 64 * 1024 * 1024, let json = try input.read(upToCount: Int(length)), json.count == length,
               let data = try JSONSerialization.jsonObject(with: json) as? [String: Any],
-              let version = data["version"] as? Int, [1, 4, 5, 6].contains(version),
+              let version = data["version"] as? Int, [1, 4, 5, 6, 7].contains(version),
               let assets = data["assets"] as? [[String: Any]], assets.count <= 10000 else { throw VollageError.message("Unsupported or damaged Vollage project.") }
         let size = try input.seekToEnd(); try input.seek(toOffset: UInt64(12 + length))
         var media: [VideoState] = []
-        if version == 6 {
+        if version >= 6 {
             guard size == UInt64(12 + length) else { throw VollageError.message("Unexpected media in linked project.") }
             for asset in assets {
                 guard let path = asset["sourcePath"] as? String, path.hasPrefix("/"),
@@ -133,6 +144,7 @@ actor ProjectStore {
         let canvas = data["canvas"] as? [String: Any] ?? [:]
         let w = (canvas["width"] as? Double) ?? 1920, h = (canvas["height"] as? Double) ?? 1080
         guard w >= 1, h >= 1, w <= 7680, h <= 7680 else { throw VollageError.message("Invalid canvas dimensions.") }
+        let effectDecoder = JSONDecoder()
         func decode(_ value: Any?) throws -> [VideoState] {
             guard let values = value as? [[String: Any]], values.count <= 1000 else { throw VollageError.message("Invalid video list.") }
             var ids = Set<String>()
@@ -151,6 +163,15 @@ actor ProjectStore {
                 clip.mirrored = v["mirrored"] as? Bool ?? false; clip.locked = v["locked"] as? Bool ?? false
                 clip.pinned = v["pinned"] as? Bool ?? (version < 5 && clip.locked)
                 clip.blend = v["blend"] as? String ?? "normal"
+                if version == 7, let effects = v["effects"] {
+                    guard let entries = effects as? [[String: Any]], entries.count <= VideoState.maximumEffects,
+                          let data = try? JSONSerialization.data(withJSONObject: entries),
+                          let stack = try? effectDecoder.decode([EffectInstance].self, from: data),
+                          Set(stack.map(\.id)).count == stack.count else {
+                        throw VollageError.message("Invalid or unsupported video effects.")
+                    }
+                    clip.effectStack = stack
+                }
                 guard clip.width > 0, clip.height > 0, clip.width * w <= 100000, clip.height * h <= 100000, (0...16).contains(clip.speed), (0...1).contains(clip.volume), clip.time >= 0, ["normal", "screen", "multiply", "difference", "overlay"].contains(clip.blend) else { throw VollageError.message("Invalid video settings.") }
                 return clip
             }

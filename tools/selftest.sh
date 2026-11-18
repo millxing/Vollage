@@ -10,12 +10,13 @@ ffmpeg=${FFMPEG:-$(command -v ffmpeg)}
 "$ffmpeg" -hide_banner -loglevel error -i "$fixtures/red.mp4" -c:v wmv2 -c:a wmav2 -y "$fixtures/legacy.wmv"
 "$ffmpeg" -hide_banner -loglevel error -display_rotation 90 -i "$fixtures/red.mp4" -c copy -y "$fixtures/rotated.mp4"
 "$ffmpeg" -hide_banner -loglevel error -f lavfi -i color=c=green:size=320x180:rate=30:duration=2 -f lavfi -i sine=frequency=880:sample_rate=48000:duration=0.5 -c:v libx264 -pix_fmt yuv420p -c:a aac -y "$fixtures/short-audio.mp4"
+app=${VOLLAGE_TEST_APP:-"$here/build/Vollage.app"}
 export VOLLAGE_TEST_MEDIA="$fixtures"
 export VOLLAGE_DATA_ROOT=/tmp/vollage-native-parity-data
-export VOLLAGE_SNAPSHOTS=${VOLLAGE_SNAPSHOTS:-/tmp/vollage-native-parity-shots}
-"$here/build/Vollage.app/Contents/MacOS/Vollage" --selftest
+export VOLLAGE_SNAPSHOTS=${VOLLAGE_SNAPSHOTS-/tmp/vollage-native-parity-shots}
+"$app/Contents/MacOS/Vollage" --selftest
 node "$here/tools/portable-test.cjs" "$fixtures"
-VOLLAGE_ROUNDTRIP="$fixtures/electron-roundtrip.vollage" "$here/build/Vollage.app/Contents/MacOS/Vollage" --selftest
+VOLLAGE_ROUNDTRIP="$fixtures/electron-roundtrip.vollage" "$app/Contents/MacOS/Vollage" --selftest
 "$ffmpeg" -hide_banner -i "$fixtures/output.mp4" -af volumedetect -vn -f null - 2> "$fixtures/audio-check.log"
 if rg -q 'mean_volume: -inf' "$fixtures/audio-check.log"; then print 'FAIL output audio is silent'; exit 1; fi
 print 'PASS output audio is non-silent'

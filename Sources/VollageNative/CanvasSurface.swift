@@ -50,6 +50,10 @@ final class CanvasView: NSView {
                 guard let self else { return }
                 let now = ProcessInfo.processInfo.systemUptime
                 self.model.tick(min(0.2, now - self.previousTick)); self.previousTick = now
+                let document = self.model.document
+                let outputSize = CGSize(width: document.canvasWidth, height: document.canvasHeight)
+                do { try self.model.compositor.updateEffects(clips: self.model.clips, outputSize: outputSize) }
+                catch { self.model.status = "Video effects paused: \(error.localizedDescription)" }
                 if let recorder = self.model.recording, !recorder.isFinishing {
                     do { try recorder.append(self.model.clips, compositor: self.model.compositor) }
                     catch { self.model.error = error.localizedDescription; self.model.toggleRecording() }

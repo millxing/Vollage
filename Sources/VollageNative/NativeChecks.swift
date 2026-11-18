@@ -14,6 +14,17 @@ enum NativeChecks {
         }
         func wait(_ seconds: Double = 0.4) async { try? await Task.sleep(for: .seconds(seconds)) }
         let root = URL(fileURLWithPath: fixture)
+        if env["VOLLAGE_EFFECTS_CHECK"] == "1" {
+            do {
+                if let project = env["VOLLAGE_EFFECTS_SNAPSHOT_PROJECT"] {
+                    let (saved, _) = try await ProjectStore.shared.load(URL(fileURLWithPath: project))
+                    try await EffectChecks.captureInspector(model, saved: saved, check: check)
+                } else {
+                    try await EffectChecks.run(model, root: root, check: check)
+                }
+            } catch { check(false, "effects integration: \(error.localizedDescription)") }
+            exit(failures == 0 ? 0 : 1)
+        }
         func checkToolbarHelp() {
             let items = (model.window?.toolbar?.items ?? []).filter { ToolbarHelp.text(for: $0.label) != nil }
             check(items.count == 9, "all nine toolbar actions are present")
@@ -293,7 +304,7 @@ enum NativeChecks {
             model.apply(loaded); model.status = ""; model.document.folderPath = root.path; model.folder = [root.appendingPathComponent("red.mp4"), root.appendingPathComponent("blue.mp4")]
             model.select(model.clips[0]); await wait(0.5)
         } catch { check(false, "integration: \(error.localizedDescription)") }
-        if let directory = env["VOLLAGE_SNAPSHOTS"] {
+        if let directory = env["VOLLAGE_SNAPSHOTS"], !directory.isEmpty {
             try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
             for mode in ["light", "dark"] {
                 NSApp.appearance = NSAppearance(named: mode == "light" ? .aqua : .darkAqua)

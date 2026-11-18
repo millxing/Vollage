@@ -7,7 +7,8 @@ actor MediaLibrary {
     nonisolated static let extensions = Set(["mp4", "m4v", "mov", "mkv", "wmv", "flv", "avi", "webm"])
     nonisolated static var root: URL {
         if let value = ProcessInfo.processInfo.environment["VOLLAGE_DATA_ROOT"] { return URL(fileURLWithPath: value) }
-        return URL.applicationSupportDirectory.appendingPathComponent("VollageNative", isDirectory: true)
+        let testBuild = Bundle.main.bundleIdentifier == "com.vollage.native.effects-test"
+        return URL.applicationSupportDirectory.appendingPathComponent(testBuild ? "VollageEffectsTest" : "VollageNative", isDirectory: true)
     }
     nonisolated static var ffmpeg: String? { ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].first { FileManager.default.isExecutableFile(atPath: $0) } }
     nonisolated static func digest(_ text: String) -> String { SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined() }

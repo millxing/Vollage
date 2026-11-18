@@ -4,6 +4,7 @@ let package = Package(
     name: "Vollage",
     platforms: [.macOS(.v26)],
     targets: [
-        .executableTarget(name: "Vollage", path: "Sources/VollageNative", swiftSettings: [.defaultIsolation(MainActor.self)])
+        .target(name: "FrameShiftEffects"),
+        .executableTarget(name: "Vollage", dependencies: ["FrameShiftEffects"], path: "Sources/VollageNative", swiftSettings: [.defaultIsolation(MainActor.self)])
     ]
 )
