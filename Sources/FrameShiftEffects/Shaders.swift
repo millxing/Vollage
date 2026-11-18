@@ -108,7 +108,10 @@ kernel void k_slitScan(EFFECT_ARGS) {
     int dir = int(p[0]);
     float span = p[1];
     float pos = dir == 0 ? uv.y : dir == 1 ? 1.0 - uv.y : dir == 2 ? uv.x : 1.0 - uv.x;
-    dst.write(pastSmooth(hist, info, uv, pos * (span - 1.0)), gid);
+    float k = pos * (span - 1.0);
+    // The first step blends from the live frame, so the leading edge is never stale.
+    float4 older = pastSmooth(hist, info, uv, k);
+    dst.write(k < 1.0 ? mix(src.sample(lin, uv), older, k) : older, gid);
 }
 
 kernel void k_videoFeedback(EFFECT_ARGS) {

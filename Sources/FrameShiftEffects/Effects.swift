@@ -84,7 +84,8 @@ public enum EffectKind: String, CaseIterable, Codable, Sendable, Identifiable {
 
         case .slitScan: [
             ParamSpec("direction", "Direction", options: ["Top to Bottom", "Bottom to Top", "Left to Right", "Right to Left"]),
-            ParamSpec("span", "Time span", 2...64, 32, unit: .frames),
+            ParamSpec("span", "Time span", 2...64, 64, unit: .frames),
+            ParamSpec("skip", "Sample every", 1...8, 2, unit: .frames),
         ]
 
         case .videoFeedback: [

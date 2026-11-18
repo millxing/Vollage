@@ -4,7 +4,6 @@ import SwiftUI
 struct EffectInspector: View {
     let model: CanvasModel
     let clip: Clip
-    @State private var expanded = true
     @State private var openEffect: UUID?
 
     init(model: CanvasModel, clip: Clip) {
@@ -14,66 +13,86 @@ struct EffectInspector: View {
     }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(clip.state.effectStack) { effect in
-                    row(effect)
-                }
-                Menu("Add Effect", systemImage: "plus") {
-                    ForEach(EffectKind.allCases) { kind in
-                        Button(kind.title) {
-                            let effect = EffectInstance(kind: kind)
-                            edit { $0.append(effect) }
-                            openEffect = effect.id
-                        }
-                    }
-                }
-                .disabled(clip.state.effectStack.count >= VideoState.maximumEffects)
-                .help("Add an effect to the selected video")
+        let stack = clip.state.effectStack
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Effects").font(.headline)
+                Spacer()
+                addMenu(isFull: stack.count >= VideoState.maximumEffects)
             }
-            .padding(.top, 4)
-        } label: {
-            let count = clip.state.effectStack.count
-            Text(count == 0 ? "Effects" : "Effects (\(count))")
+            if stack.isEmpty {
+                Text("No effects yet. Add one to transform this video.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(stack) { effect in
+                card(effect, in: stack)
+            }
         }
         .disabled(!model.canEdit)
     }
 
-    private func row(_ effect: EffectInstance) -> some View {
-        let stack = clip.state.effectStack
-        let isExpanded = Binding(get: { openEffect == effect.id }, set: { openEffect = $0 ? effect.id : nil })
-        return HStack(alignment: .top, spacing: 8) {
-            DisclosureGroup(isExpanded: isExpanded) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Enable Effect", isOn: Binding(
-                        get: { effect.isEnabled },
-                        set: { value in edit(effect.id) { $0.isEnabled = value } }
-                    ))
-                    ForEach(effect.kind.params, id: \.key) { param in
-                        control(param, for: effect)
-                    }
+    private func addMenu(isFull: Bool) -> some View {
+        Menu {
+            ForEach(EffectKind.allCases) { kind in
+                Button(kind.title) {
+                    let effect = EffectInstance(kind: kind)
+                    edit { $0.append(effect) }
+                    openEffect = effect.id
                 }
-                .padding(.vertical, 4)
-            } label: {
-                Text(effect.kind.title)
-                    .foregroundStyle(effect.isEnabled ? Color.primary : Color.secondary)
-                    .accessibilityValue(effect.isEnabled ? "Enabled" : "Bypassed")
             }
-            Menu {
-                Button(effect.isEnabled ? "Bypass Effect" : "Enable Effect") { edit(effect.id) { $0.isEnabled.toggle() } }
-                Button("Move Up") { move(effect.id, by: -1) }.disabled(stack.first?.id == effect.id)
-                Button("Move Down") { move(effect.id, by: 1) }.disabled(stack.last?.id == effect.id)
-                Divider()
-                Button("Remove Effect", role: .destructive) { edit { $0.removeAll { $0.id == effect.id } } }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .accessibilityHidden(true)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityLabel("\(effect.kind.title) actions")
-            .help("Manage \(effect.kind.title)")
+        } label: {
+            Label("Add Effect", systemImage: "plus")
         }
+        .menuStyle(.button)
+        .fixedSize()
+        .disabled(isFull)
+        .help(isFull ? "This video has the most effects it can hold" : "Add an effect to the selected video")
+    }
+
+    private func card(_ effect: EffectInstance, in stack: [EffectInstance]) -> some View {
+        let isOpen = openEffect == effect.id
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Toggle("Enable \(effect.kind.title)", isOn: Binding(
+                    get: { effect.isEnabled },
+                    set: { value in edit(effect.id) { $0.isEnabled = value } }
+                ))
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .help(effect.isEnabled ? "Bypass this effect" : "Turn this effect on")
+                Button {
+                    openEffect = isOpen ? nil : effect.id
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(effect.kind.title)
+                            .foregroundStyle(effect.isEnabled ? Color.primary : Color.secondary)
+                        Spacer(minLength: 0)
+                        Image(systemName: isOpen ? "chevron.down" : "chevron.right")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityValue(effect.isEnabled ? "Enabled" : "Bypassed")
+                Button { move(effect.id, by: -1) } label: { Image(systemName: "arrow.up") }
+                    .disabled(stack.first?.id == effect.id)
+                    .help("Move up. Effects run from top to bottom.")
+                Button { move(effect.id, by: 1) } label: { Image(systemName: "arrow.down") }
+                    .disabled(stack.last?.id == effect.id)
+                    .help("Move down")
+                Button(role: .destructive) { edit { $0.removeAll { $0.id == effect.id } } } label: { Image(systemName: "trash") }
+                    .help("Remove \(effect.kind.title)")
+            }
+            .buttonStyle(.borderless)
+            if isOpen {
+                ForEach(effect.kind.params, id: \.key) { param in
+                    control(param, for: effect)
+                }
+                .disabled(!effect.isEnabled)
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
     }
 
     @ViewBuilder private func control(_ param: ParamSpec, for effect: EffectInstance) -> some View {

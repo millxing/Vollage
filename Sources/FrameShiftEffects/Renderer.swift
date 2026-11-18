@@ -88,6 +88,7 @@ public final class EffectRenderer {
         let feedback: [MTLTexture]
         var head = 0
         var filled = 0
+        var frameCount = 0
         var current = 0
         var written = false
         var hasPrevious = false
@@ -151,16 +152,23 @@ public final class EffectRenderer {
             let state = states[effect.id]!
             var info = KernelInfo(width: UInt32(input.width), height: UInt32(input.height), time: Float(time))
             if let history = state.history {
-                if isNewFrame || state.filled == 0 {
+                // History keeps every Nth decoded frame, so the scan can reach several seconds back.
+                let skip = max(1, Int(effect.value("skip")))
+                var push = state.filled == 0
+                if isNewFrame && state.filled > 0 {
+                    state.frameCount += 1
+                    push = state.frameCount % skip == 0
+                }
+                if push {
                     if state.filled > 0 { state.head = (state.head + 1) % history.arrayLength }
                     state.filled = min(state.filled + 1, history.arrayLength)
+                    var slot = UInt32(state.head)
+                    encoder.setTexture(current, index: 0)
+                    encoder.setTexture(history, index: 1)
+                    encoder.setBytes(&slot, length: MemoryLayout<UInt32>.size, index: 0)
+                    dispatch("k_push")
                 }
-                var slot = UInt32(state.head)
-                encoder.setTexture(current, index: 0)
-                encoder.setTexture(history, index: 1)
-                encoder.setBytes(&slot, length: MemoryLayout<UInt32>.size, index: 0)
-                dispatch("k_push")
-                info.head = slot
+                info.head = UInt32(state.head)
                 info.depth = UInt32(history.arrayLength)
                 info.filled = UInt32(state.filled)
             }

@@ -63,7 +63,8 @@ import CoreImage
         }
         let time = player.currentTime()
         var displayTime = CMTime.invalid
-        if let output, (lastImage == nil || output.hasNewPixelBuffer(forItemTime: time)),
+        // Only effect videos need to know when a frame is new. Plain videos fetch every tick, as before.
+        if let output, (lastImage == nil || state.effects?.isEmpty != false || output.hasNewPixelBuffer(forItemTime: time)),
            let pixel = output.copyPixelBuffer(forItemTime: time, itemTimeForDisplay: &displayTime) {
             var frame = CIImage(cvPixelBuffer: pixel)
             if let t = state.orientation, t.count == 6 {
