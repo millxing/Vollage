@@ -11,6 +11,7 @@ Build a composition by hand, set up an ever-changing video wall, or experiment w
 - **Compose freely.** Drag, resize, layer, and mirror videos, or arrange them in a grid that respects their proportions.
 - **Find new combinations.** Shuffle on demand or at a chosen interval. Keep favorite clips in the mix and lock elements in place.
 - **Shape the playback.** Adjust speed, scrub to a moment, pause individual clips, and mix their audio. Combine layers with Screen, Multiply, Difference, and Overlay blending.
+- **Add live video effects.** Stack up to 16 effects on any clip: Slit-Scan, Video Feedback, Displacement Map, Motion Trails, Pixel Sort, and more. Twelve effects in all, from the FrameShift family, each with its own controls and a mix amount.
 - **Save a set of scenes.** Capture up to nine compositions and recall them with a keystroke.
 - **Let the visuals fill the screen.** Hide the editing controls with Clean View or go fullscreen.
 - **Keep what you create.** Export a still image, record the canvas with mixed audio to MP4, and save compact projects that reference your original videos.
