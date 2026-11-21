@@ -73,9 +73,11 @@ import CoreImage
                 let transform = CGAffineTransform(a: t[0], b: t[1], c: t[2], d: t[3], tx: t[4], ty: t[5])
                 frame = frame.transformed(by: flip).transformed(by: transform).transformed(by: flip)
             }
+            let shownTime = displayTime.seconds.isFinite ? displayTime.seconds : 0
+            // Plain videos fetch every tick, so the serial counts only frames that really changed.
+            if lastImage == nil || shownTime != frameTime { frameSerial &+= 1 }
             lastImage = frame
-            frameSerial &+= 1
-            frameTime = displayTime.seconds.isFinite ? displayTime.seconds : 0
+            frameTime = shownTime
         }
         return lastImage
     }
