@@ -86,9 +86,11 @@ final class CanvasView: NSView {
         NSColor.darkGray.setFill(); bounds.fill()
         guard canvas.width > 0, canvas.height > 0 else { return }
         let size = CGSize(width: canvas.width.rounded(), height: canvas.height.rounded())
+        // Draw 1:1 at a whole-point position, so the picture is never resampled by a fraction of a pixel.
+        let target = CGRect(x: canvas.minX.rounded(), y: canvas.minY.rounded(), width: size.width, height: size.height)
         let image = model.compositor.image(clips: model.clips, size: size)
         if let cg = model.compositor.context.createCGImage(image, from: CGRect(origin: .zero, size: size)) {
-            NSImage(cgImage: cg, size: size).draw(in: canvas, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
+            NSImage(cgImage: cg, size: size).draw(in: target, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
         }
         guard !model.performing else { return }
         NSGraphicsContext.saveGraphicsState(); NSBezierPath(rect: canvas).addClip()

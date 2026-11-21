@@ -26,7 +26,8 @@ final class Compositor {
         var canvas = CIImage(color: .black).cropped(to: bounds)
         for clip in clips {
             let state = clip.state
-            let rect = CGRect(x: state.x * size.width, y: (1 - state.y - state.height) * size.height, width: state.width * size.width, height: state.height * size.height)
+            // Whole-pixel tile edges keep every frame sampled the same way, which avoids shimmer.
+            let rect = CGRect(x: state.x * size.width, y: (1 - state.y - state.height) * size.height, width: state.width * size.width, height: state.height * size.height).integral
             guard rect.width > 0, rect.height > 0 else { continue }
             var layer = CIImage(color: .black).cropped(to: rect)
             let hasEffects = state.effectStack.contains(where: \.isEnabled)
@@ -35,8 +36,13 @@ final class Compositor {
                 source = source.transformed(by: CGAffineTransform(translationX: -source.extent.minX, y: -source.extent.minY))
                 if state.mirrored { source = source.transformed(by: CGAffineTransform(scaleX: -1, y: 1)).transformed(by: CGAffineTransform(translationX: source.extent.width, y: 0)) }
                 let scale = min(rect.width / source.extent.width, rect.height / source.extent.height)
+                if scale < 1 {
+                    // A light blur first averages the pixels the shrink would drop. Without it, detailed footage shimmers.
+                    let extent = source.extent
+                    source = source.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 0.5 / scale]).cropped(to: extent)
+                }
                 source = source.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-                source = source.transformed(by: CGAffineTransform(translationX: rect.midX - source.extent.midX, y: rect.midY - source.extent.midY))
+                source = source.transformed(by: CGAffineTransform(translationX: (rect.midX - source.extent.midX).rounded(), y: (rect.midY - source.extent.midY).rounded()))
                 layer = source.composited(over: layer).cropped(to: rect)
             }
             let filters = ["screen": "CIScreenBlendMode", "multiply": "CIMultiplyBlendMode", "difference": "CIDifferenceBlendMode", "overlay": "CIOverlayBlendMode"]
